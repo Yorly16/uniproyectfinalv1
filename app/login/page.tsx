@@ -49,11 +49,10 @@ export default function LoginPage() {
             <div className="mt-8 p-4 bg-primary/5 border border-primary/20 rounded-lg">
               <h3 className="font-semibold text-primary mb-2">🔑 Acceso de Prueba</h3>
               <div className="space-y-1 text-sm">
-                <p><strong>Email:</strong> milton.yhorly@gmail.com</p>
-                <p><strong>Contraseña:</strong> pinponpinpon16@</p>
+                <p><strong></strong> </p>
+                <p><strong></strong> </p>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Usa estas credenciales para acceder al dashboard de estudiante
               </p>
             </div>
           </div>

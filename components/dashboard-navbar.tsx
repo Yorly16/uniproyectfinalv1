@@ -106,7 +106,7 @@ export function DashboardNavbar() {
             <Button variant="ghost">Explorar Proyectos</Button>
           </Link>
 
-          <Link href="/dashboard/create-project">
+          <Link href="/dashboard/upload">
             <Button variant="outline" size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
               Crear Proyecto

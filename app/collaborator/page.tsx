@@ -14,6 +14,7 @@ import { mockProjects } from "@/lib/mock-data"
 import { useCollaborations } from "@/hooks/use-collaborations"
 import { useProjects } from "@/hooks/use-projects"
 import { useAuth } from "@/hooks/use-auth"
+import { Briefcase, Clock, TrendingUp, Award, Users, Search, Filter, Target, SortAsc, X, Calendar, MessageCircle, BookOpen } from "lucide-react"
 
 interface User {
   email: string
@@ -29,7 +30,6 @@ interface User {
 export default function CollaboratorPage() {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedTag, setSelectedTag] = useState("all")
@@ -38,13 +38,6 @@ export default function CollaboratorPage() {
   const { projects, loading: projectsLoading } = useProjects()
   const { collaborations } = useCollaborations()
   const { user, userProfile, loading: authLoading } = useAuth()
-
-  // Estados de filtros (sin duplicados)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("all")
-  const [selectedTag, setSelectedTag] = useState("all")
-  const [sortBy, setSortBy] = useState("newest")
-  const [currentTime, setCurrentTime] = useState(new Date())
 
   const isLoading = authLoading || projectsLoading
 
@@ -149,7 +142,11 @@ export default function CollaboratorPage() {
     return null
   }
 
-  {/* Sección de Bienvenida */}
+  return (
+    <div className="min-h-screen bg-background">
+      <CollaboratorNavbar />
+      <main className="p-6 space-y-6">
+        {/* Sección de Bienvenida */}
   <div className="bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-background rounded-xl p-6 border">
     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div className="space-y-2">
@@ -452,5 +449,7 @@ export default function CollaboratorPage() {
       )}
     </TabsContent>
   </Tabs>
-</main>
-</div>
+      </main>
+    </div>
+  )
+}

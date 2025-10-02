@@ -14,8 +14,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Upload, X, Plus, DollarSign, User, Target, Gift, Briefcase, Award, Link } from "lucide-react"
 import type { ProjectCategory, DeveloperProfile } from "@/lib/types"
+import { PROJECT_CATEGORIES } from "@/lib/types"
+import { useProjects } from "@/hooks/use-projects"
+import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
 
 export function ProjectUploadForm() {
+  const router = useRouter()
+  const { createProject } = useProjects()
   const [projectName, setProjectName] = useState("")
   const [description, setDescription] = useState("")
   const [category, setCategory] = useState<ProjectCategory | "">("")
@@ -46,14 +52,7 @@ export function ProjectUploadForm() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const categories: ProjectCategory[] = [
-    "Inteligencia Artificial",
-    "Social",
-    "Tecnológico",
-    "Construcción/Arquitectura",
-    "Agricultura",
-    "Otros",
-  ]
+  const categoryOptions = Object.entries(PROJECT_CATEGORIES) // [ ["ai","Inteligencia Artificial"], ... ]
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -148,29 +147,40 @@ export function ProjectUploadForm() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulación de envío - aquí conectarás tu backend
-    const formData = {
-      projectName,
-      description,
-      category,
-      tags,
-      authors,
-      contact,
-      estimatedCost: isFree ? 0 : Number.parseFloat(estimatedCost),
-      isFree,
-      seeksFunding,
-      projectGoals,
-      expectedOutcomes,
-      imageFile,
-    }
+    try {
+      let imageUrl: string | undefined
 
-    console.log("Project data:", formData)
+      if (imageFile) {
+        const fileExt = imageFile.name.split(".").pop()
+        const filePath = `projects/${Date.now()}.${fileExt}`
+        const { error: uploadError } = await supabase
+          .storage
+          .from("project-images")
+          .upload(filePath, imageFile, { upsert: true, contentType: imageFile.type })
 
-    setTimeout(() => {
+        if (!uploadError) {
+          const { data } = supabase.storage.from("project-images").getPublicUrl(filePath)
+          imageUrl = data.publicUrl
+        }
+      }
+
+      const result = await createProject({
+        name: projectName,
+        description,
+        category: category as ProjectCategory,
+        tags,
+        imageUrl,
+        contactEmail: contact,
+        estimatedCost: isFree ? 0 : Number.parseFloat(estimatedCost || "0"),
+        authors: authors.map((a) => ({ name: a.name, university: a.university, email: a.email }))
+      })
+
+      if (result?.success) {
+        router.push("/dashboard")
+      }
+    } finally {
       setIsLoading(false)
-      alert("Proyecto subido exitosamente (demo)")
-      // Aquí redirigirías al dashboard: router.push('/dashboard')
-    }, 1500)
+    }
   }
 
   return (
@@ -248,11 +258,13 @@ export function ProjectUploadForm() {
                 <SelectValue placeholder="Selecciona una categoría" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
+                {
+                  categoryOptions.map(([value, label]) => (
+                    <SelectItem key={value} value={value as ProjectCategory}>
+                      {label}
+                    </SelectItem>
+                  ))
+                }
               </SelectContent>
             </Select>
           </div>

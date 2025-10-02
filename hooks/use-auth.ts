@@ -145,20 +145,24 @@ export function useAuth() {
 
       const authUser = data.user
       if (authUser) {
-        // Consultar el tipo de usuario en BD para decidir la redirección
-        const { data: profileRow, error: profileError } = await supabase
+        const { data: profileRow } = await supabase
+          .from('users')
+          .select('user_type')
+          .eq('id', authUser.id)
+          .single()
+
+        const metaType = (authUser.user_metadata as any)?.user_type as 'student' | 'collaborator' | undefined
+        const dbType = profileRow?.user_type as 'student' | 'collaborator' | undefined
+
+        const userType = metaType ?? dbType ?? 'collaborator'
+
+        // Si hay discrepancia, sincroniza BD con metadata de auth
+        if (metaType && dbType && metaType !== dbType) {
+          await supabase
             .from('users')
-            .select('user_type')
+            .update({ user_type: metaType })
             .eq('id', authUser.id)
-            .single()
-
-        if (profileError) {
-            console.log('Error obteniendo perfil para redirección:', profileError)
         }
-
-        // Respaldo: si aún no existe el registro en users, usar el user_metadata del auth
-        const userTypeMeta = (authUser.user_metadata as any)?.user_type as 'student' | 'collaborator' | undefined
-        const userType = (profileRow?.user_type ?? userTypeMeta) || 'collaborator'
 
         const destination = userType === 'student' ? '/dashboard' : '/collaborator'
         router.replace(destination) // replace evita volver al login con el botón "atrás"

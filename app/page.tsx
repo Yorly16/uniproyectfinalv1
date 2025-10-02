@@ -10,6 +10,7 @@ import { Search, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { PROJECT_CATEGORIES } from "@/lib/types"
+import Typewriter from 'typewriter-effect'
 
 export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -17,6 +18,25 @@ export default function HomePage() {
   const [showProjects, setShowProjects] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedProject, setSelectedProject] = useState<ProjectWithAuthors | null>(null)
+  const [currentSubtitle, setCurrentSubtitle] = useState(0)
+
+  const subtitles = [
+    "Descubre proyectos innovadores creados por estudiantes, listos para inspirarte y colaborar.",
+    "Transforma tus ideas en realidad con la comunidad universitaria más creativa.",
+    "Conecta con mentes brillantes y lleva tus proyectos al siguiente nivel.",
+    "Explora soluciones innovadoras desarrolladas por la próxima generación de líderes.",
+    "Impulsa tu carrera con proyectos que marcan la diferencia en el mundo real.",
+    "Colabora en iniciativas disruptivas que están cambiando el futuro.",
+    "Forma parte de una comunidad que está redefiniendo la innovación universitaria."
+  ]
+
+  // Cambiar subtítulo cada 5 segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSubtitle((prev) => (prev + 1) % subtitles.length)
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   const { projects, loading, loadProjects } = useProjects()
 
@@ -109,6 +129,76 @@ export default function HomePage() {
     })
   }
 
+  // Estado para el efecto máquina de escribir
+  const fullTitle = "Uni Project"
+  const [typedTitle, setTypedTitle] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [loopNum, setLoopNum] = useState(0)
+  const typingSpeed = 150
+  const deletingSpeed = 80
+  const pauseTime = 1200
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+
+    if (!isDeleting && typedTitle.length < fullTitle.length) {
+      timer = setTimeout(() => {
+        setTypedTitle(fullTitle.substring(0, typedTitle.length + 1))
+      }, typingSpeed)
+    } else if (isDeleting && typedTitle.length > 0) {
+      timer = setTimeout(() => {
+        setTypedTitle(fullTitle.substring(0, typedTitle.length - 1))
+      }, deletingSpeed)
+    } else if (!isDeleting && typedTitle.length === fullTitle.length) {
+      timer = setTimeout(() => setIsDeleting(true), pauseTime)
+    } else if (isDeleting && typedTitle.length === 0) {
+      timer = setTimeout(() => {
+        setIsDeleting(false)
+        setLoopNum(loopNum + 1)
+      }, 500)
+    }
+
+    return () => clearTimeout(timer)
+  }, [typedTitle, isDeleting, loopNum])
+
+  // Frases para el efecto máquina de escribir debajo del título
+  const phrases = [
+    "Descubre proyectos innovadores creados por estudiantes, listos para inspirarte y colaborar.",
+    "Conecta con mentes creativas y haz crecer tus ideas.",
+    "Explora oportunidades únicas para aprender y emprender.",
+    "¡Únete a la comunidad universitaria y comparte tu proyecto!"
+  ]
+  const [phraseIndex, setPhraseIndex] = useState(0)
+  const [typedPhrase, setTypedPhrase] = useState("")
+  const [isDeletingPhrase, setIsDeletingPhrase] = useState(false)
+  const typingPhraseSpeed = 60
+  const deletingPhraseSpeed = 30
+  const pausePhraseTime = 1200
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    const currentPhrase = phrases[phraseIndex]
+
+    if (!isDeletingPhrase && typedPhrase.length < currentPhrase.length) {
+      timer = setTimeout(() => {
+        setTypedPhrase(currentPhrase.substring(0, typedPhrase.length + 1))
+      }, typingPhraseSpeed)
+    } else if (isDeletingPhrase && typedPhrase.length > 0) {
+      timer = setTimeout(() => {
+        setTypedPhrase(currentPhrase.substring(0, typedPhrase.length - 1))
+      }, deletingPhraseSpeed)
+    } else if (!isDeletingPhrase && typedPhrase.length === currentPhrase.length) {
+      timer = setTimeout(() => setIsDeletingPhrase(true), pausePhraseTime)
+    } else if (isDeletingPhrase && typedPhrase.length === 0) {
+      timer = setTimeout(() => {
+        setIsDeletingPhrase(false)
+        setPhraseIndex((phraseIndex + 1) % phrases.length)
+      }, 500)
+    }
+
+    return () => clearTimeout(timer)
+  }, [typedPhrase, isDeletingPhrase, phraseIndex, phrases])
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -117,10 +207,12 @@ export default function HomePage() {
         <div className="w-full max-w-3xl space-y-8 text-center">
           <div className="space-y-4">
             <h1 className="text-5xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-              Uni Project
+              <span>{typedTitle}</span>
+              <span className="border-r-2 border-primary animate-pulse ml-1">&nbsp;</span>
             </h1>
-            <p className="text-lg text-muted-foreground text-pretty sm:text-xl">
-              Descubre proyectos innovadores creados por estudiantes, listos para inspirarte y colaborar.
+            <p className="text-lg text-muted-foreground text-pretty sm:text-xl min-h-[2.5rem]">
+              <span>{typedPhrase}</span>
+              <span className="border-r-2 border-primary animate-pulse ml-1">&nbsp;</span>
             </p>
           </div>
 

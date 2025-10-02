@@ -3,109 +3,138 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Mail, Lock } from "lucide-react"
+import { Loader2, AlertCircle } from "lucide-react"
+import { toast } from "sonner"
 import Link from "next/link"
 
+// Usuarios de prueba
+const TEST_USERS = {
+  student: {
+    email: "milton.yhorly@gmail.com",
+    password: "pinponpinpon16@",
+    name: "Milton Yhorly",
+    university: "Universidad Nacional",
+    career: "Ingeniería de Sistemas",
+    avatar: "/placeholder-user.jpg",
+    type: "student"
+  },
+  collaborator: {
+    email: "colaborador@empresa.com",
+    password: "colaborador123",
+    name: "Ana García",
+    company: "TechCorp Solutions",
+    position: "Senior Developer",
+    avatar: "/placeholder-user.jpg",
+    type: "collaborator"
+  }
+}
+
 export function LoginForm() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const router = useRouter()
+  const { signIn } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  const [formData, setFormData] = useState({
+    email: "",
+    password: ""
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // Simulación de login - aquí conectarás tu backend
-    setTimeout(() => {
-      console.log("Login attempt:", { email, password })
+    try {
+      const result = await signIn({ email: formData.email, password: formData.password })
+
+      if (!result.success) {
+        setError(result.error || "Credenciales incorrectas")
+        return
+      }
+
+      // La redirección y el toast se manejan en el hook useAuth
+    } catch (error: any) {
+      setError(error.message || "Error al iniciar sesión")
+    } finally {
       setIsLoading(false)
-      // Aquí redirigirías al dashboard: router.push('/dashboard')
-    }, 1500)
+    }
+  }
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    if (error) setError(null)
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-balance">Iniciar Sesión</CardTitle>
-        <CardDescription className="text-pretty">
-          Ingresa tus credenciales para acceder a tu panel de estudiante
+        <CardTitle className="text-2xl font-bold text-center">Iniciar Sesión</CardTitle>
+        <CardDescription className="text-center">
+          Accede a tu cuenta de Uni Project
         </CardDescription>
       </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Correo Electrónico</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu.email@universidad.edu"
-                className="pl-10"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+            <Label htmlFor="email">Correo electrónico</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="tu@email.com"
+              value={formData.email}
+              onChange={(e) => handleInputChange("email", e.target.value)}
+              required
+              disabled={isLoading}
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                className="pl-10 pr-10"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Tu contraseña"
+              value={formData.password}
+              onChange={(e) => handleInputChange("password", e.target.value)}
+              required
+              disabled={isLoading}
+            />
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <Link href="/forgot-password" className="text-primary hover:underline">
-              ¿Olvidaste tu contraseña?
-            </Link>
-          </div>
-
-          <Alert>
-            <AlertDescription className="text-sm">
-              <strong>Nota:</strong> Esta es una interfaz de demostración. Conecta tu backend para funcionalidad
-              completa.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-
-        <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Iniciando sesión...
+              </>
+            ) : (
+              "Iniciar sesión"
+            )}
           </Button>
 
-          <div className="text-center text-sm text-muted-foreground">
+          <div className="text-center text-sm">
             ¿No tienes cuenta?{" "}
             <Link href="/register" className="text-primary hover:underline">
               Regístrate aquí
             </Link>
           </div>
-        </CardFooter>
-      </form>
+        </form>
+      </CardContent>
     </Card>
   )
 }

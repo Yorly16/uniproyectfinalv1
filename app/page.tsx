@@ -3,39 +3,44 @@
 import { useState, useEffect, useMemo } from "react"
 import { Navbar } from "@/components/navbar"
 import { ProjectCard } from "@/components/project-card"
-import { mockProjects } from "@/lib/mock-data"
-import type { ProjectCategory, Project } from "@/lib/types"
+import { useProjects } from "@/hooks/use-projects"
+import type { ProjectWithAuthors } from "@/lib/types"
 import { Input } from "@/components/ui/input"
-import { Search, X } from "lucide-react"
+import { Search, X, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { PROJECT_CATEGORIES } from "@/lib/types"
 
 export default function HomePage() {
-  const [selectedCategory, setSelectedCategory] = useState<ProjectCategory | "Todos">("Todos")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showProjects, setShowProjects] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [selectedProject, setSelectedProject] = useState<ProjectWithAuthors | null>(null)
 
-  const filteredProjects = mockProjects.filter((project) => {
-    const matchesCategory = selectedCategory === "Todos" || project.category === selectedCategory
-    const matchesSearch =
-      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+  const { projects, loading, loadProjects } = useProjects()
 
-    return matchesCategory && matchesSearch
-  })
+  // Cargar proyectos al montar el componente y cuando cambien los filtros
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadProjects({
+        category: selectedCategory === "all" ? undefined : selectedCategory,
+        search: searchQuery.trim() || undefined
+      })
+    }, 300) // Debounce de 300ms
+
+    return () => clearTimeout(timeoutId)
+  }, [selectedCategory, searchQuery, loadProjects])
 
   // Sugerencias basadas en búsqueda de texto
   const searchSuggestions = useMemo(() => {
-    if (!searchQuery.trim()) return []
+    if (!searchQuery.trim() || !projects) return []
     
-    const suggestions = mockProjects
+    const suggestions = projects
       .filter(project => 
         project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+        project.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
       )
       .sort((a, b) => {
         // Priorizar coincidencias en el nombre
@@ -48,26 +53,20 @@ export default function HomePage() {
       .slice(0, 3) // Mostrar máximo 3 sugerencias
     
     return suggestions
-  }, [searchQuery])
+  }, [searchQuery, projects])
 
   // Sugerencias basadas en categoría seleccionada
   const categorySuggestions = useMemo(() => {
-    if (selectedCategory === "Todos") return []
+    if (selectedCategory === "all" || !projects) return []
     
-    return mockProjects
+    return projects
       .filter(project => project.category === selectedCategory)
       .slice(0, 3) // Mostrar máximo 3 sugerencias
-  }, [selectedCategory])
+  }, [selectedCategory, projects])
 
-  const categories: Array<ProjectCategory | "Todos"> = [
-    "Todos",
-    "Inteligencia Artificial",
-    "Social",
-    "Tecnología",
-    "Arquitectura",
-    "Agricultura",
-    "Finanzas",
-    "Otros",
+  const categories = [
+    { value: "all", label: "Todos" },
+    ...Object.entries(PROJECT_CATEGORIES).map(([value, label]) => ({ value, label }))
   ]
 
   // Hook para detectar scroll
@@ -86,21 +85,28 @@ export default function HomePage() {
   useEffect(() => {
     setShowSuggestions(
       (searchQuery.trim().length > 0 && searchSuggestions.length > 0) ||
-      (selectedCategory !== "Todos" && categorySuggestions.length > 0)
+      (selectedCategory !== "all" && categorySuggestions.length > 0)
     )
   }, [searchQuery, searchSuggestions, selectedCategory, categorySuggestions])
 
   const handleClearSearch = () => {
     setSearchQuery("")
-    setSelectedCategory("Todos")
+    setSelectedCategory("all")
     setShowSuggestions(false)
     setSelectedProject(null)
   }
 
-  const handleSuggestionClick = (project: Project) => {
+  const handleSuggestionClick = (project: ProjectWithAuthors) => {
     setSearchQuery(project.name)
     setShowSuggestions(false)
     setSelectedProject(project)
+  }
+
+  const handleProjectUpdate = () => {
+    loadProjects({
+      category: selectedCategory === "all" ? undefined : selectedCategory,
+      search: searchQuery.trim() || undefined
+    })
   }
 
   return (
@@ -129,7 +135,7 @@ export default function HomePage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowSuggestions(true)}
               />
-              {(searchQuery || selectedCategory !== "Todos") && (
+              {(searchQuery || selectedCategory !== "all") && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -161,7 +167,7 @@ export default function HomePage() {
                             >
                               <div className="w-12 h-12 rounded-md bg-muted flex-shrink-0 overflow-hidden">
                                 <img
-                                  src={project.imageUrl || "/placeholder.svg"}
+                                  src={project.image_url || "/placeholder.svg"}
                                   alt={project.name}
                                   className="w-full h-full object-cover"
                                 />
@@ -169,7 +175,7 @@ export default function HomePage() {
                               <div className="flex-1 text-left">
                                 <p className="font-medium text-sm line-clamp-1">{project.name}</p>
                                 <p className="text-xs text-muted-foreground line-clamp-1">
-                                  {project.category} • {project.authors[0].name}
+                                  {PROJECT_CATEGORIES[project.category]} • {project.project_authors?.[0]?.name || "Sin autor"}
                                 </p>
                               </div>
                             </div>
@@ -179,10 +185,10 @@ export default function HomePage() {
                     )}
 
                     {/* Sugerencias por categoría */}
-                    {selectedCategory !== "Todos" && categorySuggestions.length > 0 && (
+                    {selectedCategory !== "all" && categorySuggestions.length > 0 && (
                       <div className="p-3">
                         <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                          Proyectos de {selectedCategory}
+                          Proyectos de {PROJECT_CATEGORIES[selectedCategory]}
                         </h4>
                         <div className="space-y-2">
                           {categorySuggestions.map((project) => (
@@ -193,7 +199,7 @@ export default function HomePage() {
                             >
                               <div className="w-12 h-12 rounded-md bg-muted flex-shrink-0 overflow-hidden">
                                 <img
-                                  src={project.imageUrl || "/placeholder.svg"}
+                                  src={project.image_url || "/placeholder.svg"}
                                   alt={project.name}
                                   className="w-full h-full object-cover"
                                 />
@@ -201,7 +207,7 @@ export default function HomePage() {
                               <div className="flex-1 text-left">
                                 <p className="font-medium text-sm line-clamp-1">{project.name}</p>
                                 <p className="text-xs text-muted-foreground line-clamp-1">
-                                  {project.authors[0].name} • ${project.estimatedCost.toLocaleString()}
+                                  {project.project_authors?.[0]?.name || "Sin autor"} • ${project.estimated_cost?.toLocaleString() || "0"}
                                 </p>
                               </div>
                             </div>
@@ -211,7 +217,7 @@ export default function HomePage() {
                     )}
 
                     {/* Mensaje cuando no hay sugerencias */}
-                    {searchQuery.trim() && searchSuggestions.length === 0 && (
+                    {searchQuery.trim() && searchSuggestions.length === 0 && !loading && (
                       <div className="p-4 text-center text-sm text-muted-foreground">
                         No se encontraron proyectos que coincidan con "{searchQuery}"
                       </div>
@@ -224,13 +230,13 @@ export default function HomePage() {
             <div className="flex flex-wrap items-center justify-center gap-2">
               {categories.map((category) => (
                 <Button
-                  key={category}
-                  variant={selectedCategory === category ? "default" : "outline"}
+                  key={category.value}
+                  variant={selectedCategory === category.value ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setSelectedCategory(category)}
+                  onClick={() => setSelectedCategory(category.value)}
                   className="rounded-full"
                 >
-                  {category}
+                  {category.label}
                 </Button>
               ))}
             </div>
@@ -252,17 +258,24 @@ export default function HomePage() {
               </div>
               <div className="flex justify-center">
                 <div className="w-full max-w-md">
-                  <ProjectCard project={selectedProject} />
+                  <ProjectCard project={selectedProject} onProjectUpdate={handleProjectUpdate} />
                 </div>
               </div>
             </div>
           )}
 
           <div className="pt-8">
-            <p className="text-sm text-muted-foreground">
-              {filteredProjects.length} proyecto{filteredProjects.length !== 1 ? "s" : ""} disponible
-              {filteredProjects.length !== 1 ? "s" : ""}
-            </p>
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <p className="text-sm text-muted-foreground">Cargando proyectos...</p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {projects?.length || 0} proyecto{(projects?.length || 0) !== 1 ? "s" : ""} disponible
+                {(projects?.length || 0) !== 1 ? "s" : ""}
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -282,17 +295,33 @@ export default function HomePage() {
           </p>
         </div>
 
-        {filteredProjects.length === 0 ? (
+        {loading ? (
+          <div className="flex min-h-[400px] items-center justify-center">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p className="text-lg text-muted-foreground">Cargando proyectos...</p>
+            </div>
+          </div>
+        ) : !projects || projects.length === 0 ? (
           <div className="flex min-h-[400px] items-center justify-center">
             <div className="text-center">
               <p className="text-lg text-muted-foreground">No se encontraron proyectos</p>
-              <p className="text-sm text-muted-foreground">Intenta con otros filtros o términos de búsqueda</p>
+              <p className="text-sm text-muted-foreground">
+                {searchQuery || selectedCategory !== "all" 
+                  ? "Intenta con otros filtros o términos de búsqueda"
+                  : "Aún no hay proyectos publicados"
+                }
+              </p>
             </div>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+            {projects.map((project) => (
+              <ProjectCard 
+                key={project.id} 
+                project={project} 
+                onProjectUpdate={handleProjectUpdate}
+              />
             ))}
           </div>
         )}

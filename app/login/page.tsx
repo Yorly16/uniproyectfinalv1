@@ -41,7 +41,19 @@ export default function LoginPage() {
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
                   ✓
                 </span>
-                Muestra tu trabajo al mundo
+                Descubre proyectos innovadores
+              </p>
+            </div>
+
+            {/* Credenciales de prueba destacadas */}
+            <div className="mt-8 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+              <h3 className="font-semibold text-primary mb-2">🔑 Acceso de Prueba</h3>
+              <div className="space-y-1 text-sm">
+                <p><strong>Email:</strong> milton.yhorly@gmail.com</p>
+                <p><strong>Contraseña:</strong> pinponpinpon16@</p>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Usa estas credenciales para acceder al dashboard de estudiante
               </p>
             </div>
           </div>

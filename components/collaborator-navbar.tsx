@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { LogOut, User, Settings, Bell, Search, Plus } from "lucide-react"
+import { LogOut, User, Settings, Bell, Search, Briefcase } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,20 +19,10 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/use-auth"
 
-interface User {
-  email: string
-  name: string
-  university: string
-  career: string
-  avatar: string
-  isLoggedIn: boolean
-  loginTime: string
-}
-
-export function DashboardNavbar() {
+export function CollaboratorNavbar() {
   const router = useRouter()
   const { user, userProfile, signOut, loading } = useAuth()
-  const [notificationCount] = useState(3) // Simulación de notificaciones
+  const [notificationCount] = useState(2) // Simulación de notificaciones
 
   useEffect(() => {
     if (!loading && !user) {
@@ -42,7 +32,7 @@ export function DashboardNavbar() {
 
   const handleLogout = async () => {
     await signOut()
-    router.push('/')
+    // La navegación ocurre dentro de signOut() (router.replace('/login'))
   }
 
   const getInitials = (name: string) => {
@@ -95,7 +85,7 @@ export function DashboardNavbar() {
           <div className="hidden md:flex relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input 
-              placeholder="Buscar proyectos..." 
+              placeholder="Buscar proyectos para colaborar..." 
               className="pl-10 w-64"
             />
           </div>
@@ -104,13 +94,6 @@ export function DashboardNavbar() {
         <div className="flex items-center gap-4">
           <Link href="/">
             <Button variant="ghost">Explorar Proyectos</Button>
-          </Link>
-
-          <Link href="/dashboard/create-project">
-            <Button variant="outline" size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Crear Proyecto
-            </Button>
           </Link>
 
           {/* Botón de cerrar sesión visible */}
@@ -143,7 +126,7 @@ export function DashboardNavbar() {
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-blue-500 text-white">
-                    {getInitials(userProfile.full_name)}
+                    {getInitials(userProfile.name)}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -151,30 +134,23 @@ export function DashboardNavbar() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{userProfile.full_name}</p>
+                  <p className="text-sm font-medium">{userProfile.name}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
-                  {userProfile.developer_profile && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <span>{userProfile.developer_profile.career}</span>
-                      {userProfile.developer_profile.university && (
-                        <>
-                          <span>•</span>
-                          <span>{userProfile.developer_profile.university}</span>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Briefcase className="h-3 w-3" />
+                    Colaborador
+                  </div>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/profile" className="cursor-pointer">
+                <Link href="/collaborator/profile" className="cursor-pointer">
                   <User className="mr-2 h-4 w-4" />
                   Mi Perfil
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/settings" className="cursor-pointer">
+                <Link href="/collaborator/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   Configuración
                 </Link>

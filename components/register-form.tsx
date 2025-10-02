@@ -3,13 +3,16 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, AlertCircle, Eye, EyeOff, Lock, User, Building2, Mail, GraduationCap } from "lucide-react"
+import { toast } from "sonner"
 import Link from "next/link"
 
 type AccountType = "student" | "collaborator"
@@ -19,6 +22,7 @@ export function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const { signUp } = useAuth()
 
   // Campos comunes
   const [firstName, setFirstName] = useState("")
@@ -41,20 +45,30 @@ export function RegisterForm() {
       return
     }
 
-    // Simulación de registro - aquí conectarás tu backend
-    setTimeout(() => {
-      const userData = {
-        accountType,
-        firstName,
-        lastName,
+    try {
+      const fullName = `${firstName} ${lastName}`.trim()
+      const result = await signUp({
         email,
         password,
-        ...(accountType === "student" && { career, university })
+        confirmPassword,
+        fullName,
+        userType: accountType === "student" ? "student" : "collaborator",
+        university: accountType === "student" ? university : undefined,
+        career: accountType === "student" ? career : undefined,
+      })
+
+      if (!result.success) {
+        toast.error(result.error || "Error al crear la cuenta")
+        setIsLoading(false)
+        return
       }
-      console.log("Register attempt:", userData)
+
+      // El hook maneja los toasts y la redirección (login/dashboard)
+    } catch (err: any) {
+      toast.error(err.message || "Error al crear la cuenta")
+    } finally {
       setIsLoading(false)
-      // Aquí redirigirías al dashboard: router.push('/dashboard')
-    }, 1500)
+    }
   }
 
   return (

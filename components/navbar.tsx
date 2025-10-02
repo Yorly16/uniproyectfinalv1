@@ -4,9 +4,14 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
+import { Moon, Sun } from "lucide-react"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 
 export function Navbar() {
   const { user, loading } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
 
   return (
     <nav className="fixed top-0 z-50 w-full border-b border-transparent bg-transparent backdrop-blur-sm transition-colors hover:border-border hover:bg-background/80">
@@ -28,6 +33,19 @@ export function Navbar() {
               Explorar
             </Button>
           </Link>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Modo oscuro"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+          >
+            {isDark ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
           
           {loading ? (
             <Button size="sm" disabled>

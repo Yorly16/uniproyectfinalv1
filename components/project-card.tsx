@@ -28,6 +28,10 @@ export function ProjectCard({ project, onProjectUpdate }: ProjectCardProps) {
   // useEffect(() => {
   //   recordView(project.id)
   // }, [project.id, recordView])
+  
+  const handleOpenDetail = () => {
+    window.open(`/projects/${project.id}`, '_blank')
+  }
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -136,7 +140,10 @@ Saludos cordiales,
   const buttonState = getCollaborationButtonState()
 
   return (
-    <Card className="group overflow-hidden transition-all hover:shadow-lg">
+    <Card 
+      className="group overflow-hidden transition-all hover:shadow-lg"
+      onClick={handleOpenDetail}
+    >
       <div className="relative h-48 w-full overflow-hidden bg-muted">
         <Image
           src={project.image_url || "/placeholder.svg"}
@@ -225,7 +232,10 @@ Saludos cordiales,
             variant={buttonState.variant}
             size="sm" 
             className="flex-1 gap-2"
-            onClick={handleCollaborate}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleCollaborate()
+            }}
             disabled={buttonState.disabled || collaborationLoading}
           >
             {collaborationLoading ? (
@@ -250,7 +260,10 @@ Saludos cordiales,
               variant="default" 
               size="sm" 
               className="gap-2"
-              onClick={handleContact}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleContact()
+              }}
             >
               <Mail className="h-4 w-4" />
               Contactar

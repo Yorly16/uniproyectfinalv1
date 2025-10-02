@@ -207,7 +207,11 @@ export default function HomePage() {
         <div className="w-full max-w-3xl space-y-8 text-center">
           <div className="space-y-4">
             <h1 className="text-5xl font-bold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-              <span>{typedTitle}</span>
+              <span
+                className="bg-gradient-to-r from-blue-500 via-orange-400 to-yellow-400 bg-clip-text text-transparent"
+              >
+                {typedTitle}
+              </span>
               <span className="border-r-2 border-primary animate-pulse ml-1">&nbsp;</span>
             </h1>
             <p className="text-lg text-muted-foreground text-pretty sm:text-xl min-h-[2.5rem]">

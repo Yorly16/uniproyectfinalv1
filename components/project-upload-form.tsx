@@ -18,6 +18,7 @@ import { PROJECT_CATEGORIES } from "@/lib/types"
 import { useProjects } from "@/hooks/use-projects"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 export function ProjectUploadForm() {
   const router = useRouter()
@@ -143,36 +144,89 @@ export function ProjectUploadForm() {
     }
   }
 
+  // Helper para evitar cuelgues
+  const promiseTimeout = <T,>(p: Promise<T>, ms: number) =>
+    new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("timeout")), ms)
+      p.then((res) => {
+        clearTimeout(t)
+        resolve(res)
+      }).catch((err) => {
+        clearTimeout(t)
+        reject(err)
+      })
+    })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
 
+    // Validación manual de campos obligatorios (Select de Shadcn no respeta required)
+    if (
+      !projectName.trim() ||
+      !description.trim() ||
+      !projectGoals.trim() ||
+      !expectedOutcomes.trim() ||
+      !category
+    ) {
+      toast.error("Por favor completa todos los campos obligatorios.")
+      return
+    }
+    const hasInvalidAuthor = authors.some(
+      (a) => !a.name.trim() || !a.university.trim() || !a.email.trim()
+    )
+    if (hasInvalidAuthor) {
+      toast.error("Completa los datos de todos los desarrolladores (nombre, universidad y email).")
+      return
+    }
+    if (!contact.trim()) {
+      toast.error("El email de contacto es obligatorio.")
+      return
+    }
+
+    setIsLoading(true)
     try {
       let imageUrl: string | undefined
+      const UPLOAD_TIMEOUT_MS = 15000
+      const CREATE_TIMEOUT_MS = 15000
 
       if (imageFile) {
-        const fileExt = imageFile.name.split(".").pop()
-        const filePath = `projects/${Date.now()}.${fileExt}`
-        const { error: uploadError } = await supabase
-          .storage
-          .from("project-images")
-          .upload(filePath, imageFile, { upsert: true, contentType: imageFile.type })
+        try {
+          const fileExt = imageFile.name.split(".").pop()
+          const filePath = `projects/${Date.now()}.${fileExt}`
+          const { error: uploadError } = await promiseTimeout(
+            supabase.storage
+              .from("project-images")
+              .upload(filePath, imageFile, { upsert: true, contentType: imageFile.type }),
+            UPLOAD_TIMEOUT_MS
+          )
 
-        if (!uploadError) {
-          const { data } = supabase.storage.from("project-images").getPublicUrl(filePath)
-          imageUrl = data.publicUrl
+          if (uploadError) {
+            toast.error("Error subiendo la imagen. Crearemos el proyecto sin imagen.")
+          } else {
+            const { data } = supabase.storage.from("project-images").getPublicUrl(filePath)
+            imageUrl = data.publicUrl
+          }
+        } catch {
+          toast.error("Tiempo de espera al subir la imagen. Crearemos el proyecto sin imagen.")
         }
       }
 
-      const result = await createProject({
-        name: projectName,
-        description,
-        category: category as ProjectCategory,
-        tags,
-        imageUrl,
-        contactEmail: contact,
-        estimatedCost: isFree ? 0 : Number.parseFloat(estimatedCost || "0"),
-        authors: authors.map((a) => ({ name: a.name, university: a.university, email: a.email }))
+      const result = await promiseTimeout(
+        createProject({
+          name: projectName,
+          description,
+          category: category as ProjectCategory,
+          tags,
+          imageUrl,
+          contactEmail: contact,
+          estimatedCost: isFree ? 0 : Number.parseFloat(estimatedCost || "0"),
+          authors: authors.map((a) => ({ name: a.name, university: a.university, email: a.email }))
+        }),
+        CREATE_TIMEOUT_MS
+      ).catch((err) => {
+        console.error("Timeout/Error creando proyecto:", err)
+        toast.error("No se pudo crear el proyecto. Intenta nuevamente.")
+        return null
       })
 
       if (result?.success) {

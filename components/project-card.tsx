@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Users, Mail, DollarSign, UserPlus, CreditCard, Check, Heart, Eye, Loader2 } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { useCollaborations } from "@/hooks/use-collaborations"
 import { useProjects } from "@/hooks/use-projects"
 import { useAuth } from "@/hooks/use-auth"
@@ -29,9 +30,7 @@ export function ProjectCard({ project, onProjectUpdate }: ProjectCardProps) {
   //   recordView(project.id)
   // }, [project.id, recordView])
   
-  const handleOpenDetail = () => {
-    window.open(`/projects/${project.id}`, '_blank')
-  }
+
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -140,11 +139,9 @@ Saludos cordiales,
   const buttonState = getCollaborationButtonState()
 
   return (
-    <Card 
-      className="group overflow-hidden transition-all hover:shadow-lg"
-      onClick={handleOpenDetail}
-    >
-      <div className="relative h-48 w-full overflow-hidden bg-muted">
+    <Card className="group overflow-hidden transition-all hover:shadow-lg">
+      <Link href={`/projects/${project.id}`} className="block">
+        <div className="relative h-48 w-full overflow-hidden bg-muted">
         <Image
           src={project.image_url || "/placeholder.svg"}
           alt={project.name}
@@ -271,6 +268,7 @@ Saludos cordiales,
           )}
         </div>
       </CardFooter>
+      </Link>
     </Card>
   )
 }

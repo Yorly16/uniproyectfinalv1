@@ -1,4 +1,6 @@
 import type { Project } from "@/lib/types"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +29,7 @@ interface MyProjectCardProps {
 }
 
 export function MyProjectCard({ project }: MyProjectCardProps) {
+  const router = useRouter()
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       "Inteligencia Artificial": "bg-primary/10 text-primary border-primary/20",
@@ -53,20 +56,22 @@ export function MyProjectCard({ project }: MyProjectCardProps) {
       navigator.share({
         title: project.name,
         text: project.description,
-        url: window.location.origin + `/project/${project.id}`
+        url: window.location.origin + `/projects/${project.id}`
       })
     } else {
       // Fallback para navegadores que no soportan Web Share API
-      navigator.clipboard.writeText(window.location.origin + `/project/${project.id}`)
+      navigator.clipboard.writeText(window.location.origin + `/projects/${project.id}`)
       alert("Enlace copiado al portapapeles")
     }
   }
+
+
 
   return (
     <Card className="group overflow-hidden transition-all hover:shadow-lg">
       <div className="relative h-40 w-full overflow-hidden bg-muted">
         <Image 
-          src={project.imageUrl || "/placeholder.svg"} 
+          src={project.image_url || "/placeholder.svg"} 
           alt={project.name} 
           fill 
           className="object-cover transition-transform group-hover:scale-105" 
@@ -83,15 +88,15 @@ export function MyProjectCard({ project }: MyProjectCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => router.push(`/projects/${project.id}`)}>
                 <Eye className="mr-2 h-4 w-4" />
                 Ver Proyecto
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => router.push(`/dashboard/projects/${project.id}/edit`)}>
                 <Edit className="mr-2 h-4 w-4" />
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleShare}>
+              <DropdownMenuItem onSelect={handleShare}>
                 <Share2 className="mr-2 h-4 w-4" />
                 Compartir
               </DropdownMenuItem>
@@ -148,7 +153,7 @@ export function MyProjectCard({ project }: MyProjectCardProps) {
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-1 text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            <span>Publicado {new Date(project.createdAt).toLocaleDateString('es-ES')}</span>
+            <span>Publicado {new Date(project.created_at).toLocaleDateString('es-ES')}</span>
           </div>
           <div className="flex items-center gap-1 text-green-600">
             <TrendingUp className="h-3 w-3" />
@@ -163,7 +168,12 @@ export function MyProjectCard({ project }: MyProjectCardProps) {
           <Eye className="mr-2 h-4 w-4" />
           Ver
         </Button> */}
-        <Button variant="outline" size="sm" className="flex-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => router.push(`/dashboard/projects/${project.id}/edit`)}
+        >
           <Edit className="mr-2 h-4 w-4" />
           Editar
         </Button>

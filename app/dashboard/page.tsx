@@ -20,19 +20,37 @@ import {
   Target,
   Clock,
   AlertTriangle,
-  MessageCircle,   // <-- agregar
-  Star              // <-- agregar
+  MessageCircle,
+  Star
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
+import { useProjects } from "@/hooks/use-projects"
+import { supabase } from "@/lib/supabase"
+import { toast } from "sonner"
 
 export default function DashboardPage() {
   const router = useRouter()
   const { user, userProfile, loading: authLoading } = useAuth()
+  const { userProjects, loading: projectsLoading } = useProjects()
 
   const [currentTime, setCurrentTime] = useState(new Date())
   const [sessionWarning, setSessionWarning] = useState(false)
+  const [activityRequests, setActivityRequests] = useState<any[]>([])
+
+  // Función para obtener saludo según la hora
+  const getGreeting = () => {
+    const hour = currentTime.getHours()
+    if (hour < 12) return "Buenos días"
+    if (hour < 18) return "Buenas tardes"
+    return "Buenas noches"
+  }
+
+  // Asegura que myProjects exista antes de usarlo
+  const myProjects = Array.isArray(userProjects) ? userProjects : []
+
+
 
   // Redirección basada en Supabase
   useEffect(() => {
@@ -52,38 +70,42 @@ export default function DashboardPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Función para obtener saludo según la hora
-  const getGreeting = () => {
-    const hour = currentTime.getHours()
-    if (hour < 12) return "Buenos días"
-    if (hour < 18) return "Buenas tardes"
-    return "Buenas noches"
-  }
+  useEffect(() => {
+    const loadActivity = async () => {
+      if (!user) return
+      try {
+        const { data: myProjects, error: projError } = await supabase
+          .from('projects')
+          .select('id, name')
+          .eq('created_by', user.id)
 
-  // Cargar mientras se obtiene la sesión
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Cargando dashboard...</p>
-        </div>
-      </div>
-    )
-  }
+        if (projError) throw projError
 
-  // Si no hay usuario, no renderizamos (el efecto redirige)
-  if (!user) {
-    return null
-  }
+        const projectIds = (myProjects || []).map((p) => p.id)
+        if (projectIds.length === 0) {
+          setActivityRequests([])
+          return
+        }
 
-  // Simulación: proyectos del usuario actual
-  const myProjects = mockProjects.slice(0, 3)
+        const { data: collabs, error: collabError } = await supabase
+          .from('collaborations')
+          .select(`
+            *,
+            projects:projects(*),
+            requester:users!collaborations_collaborator_id_fkey (id, full_name, email, avatar_url)
+          `)
+          .in('project_id', projectIds)
+          .order('created_at', { ascending: false })
 
-  // Simulación: actividad reciente (solo contactos)
-  const recentActivity = [
-    { type: "contact", project: "Sistema de IA para Recomendaciones", count: 2, time: "1 día" }
-  ]
+        if (collabError) throw collabError
+
+        setActivityRequests(collabs || [])
+      } catch (err) {
+        console.error('Error cargando actividad reciente:', err)
+      }
+    }
+    loadActivity()
+  }, [user])
 
   // Simulación: estadísticas del usuario (sin vistas/likes)
   const userStats = {
@@ -111,7 +133,7 @@ export default function DashboardPage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="space-y-2">
               <h1 className="text-3xl font-bold text-foreground">
-                {getGreeting()}, {userProfile?.full_name || user.email}! 👋
+                {getGreeting()}, {(userProfile?.full_name ?? user?.email ?? 'Estudiante')}! 👋
               </h1>
               <p className="text-muted-foreground text-lg">
                 Bienvenido de vuelta a tu panel de estudiante
@@ -217,14 +239,21 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            {myProjects.length === 0 ? (
+            {projectsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Cargando tus proyectos...</p>
+                </div>
+              </div>
+            ) : myProjects.length === 0 ? (
               <Card className="text-center py-12">
                 <CardContent className="space-y-4">
                   <FolderOpen className="h-16 w-16 mx-auto text-muted-foreground" />
                   <div>
-                    <h3 className="text-xl font-semibold mb-2">¡Sube tu primer proyecto!</h3>
+                    <h3 className="text-xl font-semibold mb-2">¡Aún no has subido ningún proyecto!</h3>
                     <p className="text-muted-foreground mb-4">
-                      Comparte tus ideas y conecta con otros estudiantes
+                      Comparte tu primer proyecto y empieza a conectar con la comunidad
                     </p>
                     <Link href="/dashboard/upload">
                       <Button>
@@ -249,23 +278,101 @@ export default function DashboardPage() {
             <h2 className="text-2xl font-bold">Actividad Reciente</h2>
             
             <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
-                <Card key={index}>
-                  <CardContent className="flex items-center gap-4 p-4">
-                    <div className="flex-shrink-0">
-                      {/* Se eliminan íconos de view/like */}
-                      {activity.type === "contact" && <MessageCircle className="h-5 w-5 text-green-500" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{activity.project}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {activity.count} contactos • hace {activity.time}
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{activity.count}</Badge>
+              {activityRequests.length === 0 ? (
+                <Card>
+                  <CardContent className="p-4 text-sm text-muted-foreground">
+                    Aún no hay solicitudes de colaboración en tus proyectos.
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                activityRequests.map((req) => (
+                  <Card key={req.id}>
+                    <CardContent className="flex items-start gap-4 p-4">
+                      <div className="flex-shrink-0">
+                        <MessageCircle className="h-5 w-5 text-green-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">
+                          {req.requester?.full_name || req.requester?.email || 'Usuario'} solicitó colaborar en "{req.projects?.name || 'Proyecto'}"
+                        </p>
+                        {req.message && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Mensaje: {req.message}
+                          </p>
+                        )}
+                        <div className="mt-2 flex items-center gap-2">
+                          {req.status === 'pending' ? (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  const reply = window.prompt('Mensaje para el solicitante (opcional):', '') ?? ''
+                                  try {
+                                    let combinedMessage = req.message || ''
+                                    if (reply.trim()) {
+                                      combinedMessage = (combinedMessage ? combinedMessage + '\n\n' : '') + `Respuesta del estudiante: ${reply.trim()}`
+                                    }
+                                    const { error } = await supabase
+                                      .from('collaborations')
+                                      .update({
+                                        status: 'accepted',
+                                        started_at: new Date().toISOString(),
+                                        updated_at: new Date().toISOString(),
+                                        message: combinedMessage || req.message
+                                      })
+                                      .eq('id', req.id)
+                                    if (error) throw error
+                                    setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted', message: combinedMessage || r.message } : r))
+                                    toast.success('Colaboración aceptada')
+                                  } catch (e: any) {
+                                    console.error(e)
+                                    toast.error(e.message || 'Error al aceptar')
+                                  }
+                                }}
+                              >
+                                Aceptar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  const reply = window.prompt('Motivo de rechazo (opcional):', '') ?? ''
+                                  try {
+                                    let combinedMessage = req.message || ''
+                                    if (reply.trim()) {
+                                      combinedMessage = (combinedMessage ? combinedMessage + '\n\n' : '') + `Respuesta del estudiante: ${reply.trim()}`
+                                    }
+                                    const { error } = await supabase
+                                      .from('collaborations')
+                                      .update({
+                                        status: 'rejected',
+                                        updated_at: new Date().toISOString(),
+                                        message: combinedMessage || req.message
+                                      })
+                                      .eq('id', req.id)
+                                    if (error) throw error
+                                    setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', message: combinedMessage || r.message } : r))
+                                    toast.success('Colaboración rechazada')
+                                  } catch (e: any) {
+                                    console.error(e)
+                                    toast.error(e.message || 'Error al rechazar')
+                                  }
+                                }}
+                              >
+                                Rechazar
+                              </Button>
+                            </>
+                          ) : (
+                            <Badge variant="secondary">
+                              {req.status === 'accepted' ? 'Aceptada' : req.status === 'rejected' ? 'Rechazada' : req.status === 'completed' ? 'Completada' : 'Pendiente'}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </TabsContent>
 

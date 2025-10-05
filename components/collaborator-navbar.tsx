@@ -35,9 +35,11 @@ export function CollaboratorNavbar() {
     // La navegación ocurre dentro de signOut() (router.replace('/login'))
   }
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
+  const getInitials = (name?: string) => {
+    const safe = (name ?? '').trim()
+    if (!safe) return '??'
+    return safe
+      .split(/\s+/)
       .map(word => word.charAt(0))
       .join('')
       .toUpperCase()
@@ -126,7 +128,7 @@ export function CollaboratorNavbar() {
               <Button variant="ghost" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-blue-500 text-white">
-                    {getInitials(userProfile.name)}
+                    {getInitials(userProfile.full_name ?? user.email ?? '')}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -134,7 +136,9 @@ export function CollaboratorNavbar() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{userProfile.name}</p>
+                  <p className="text-sm font-medium">
+                    {userProfile.full_name ?? user.email}
+                  </p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Briefcase className="h-3 w-3" />

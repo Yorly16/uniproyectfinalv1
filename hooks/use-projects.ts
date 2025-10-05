@@ -175,7 +175,10 @@ export function useProjects() {
         .select()
         .single()
 
-      if (projectError) throw projectError
+      if (projectError) {
+        toast.error(projectError.message || 'Error al crear el proyecto')
+        throw projectError
+      }
 
       // Insertar autores
       if (projectData.authors && projectData.authors.length > 0) {
@@ -191,7 +194,10 @@ export function useProjects() {
           .from('project_authors')
           .insert(authorsInsert)
 
-        if (authorsError) throw authorsError
+        if (authorsError) {
+        toast.error(authorsError.message || 'Error al crear autores')
+        throw authorsError
+      }
       }
 
       toast.success('Proyecto creado exitosamente')
@@ -199,9 +205,9 @@ export function useProjects() {
       await loadUserProjects()
       
       return { success: true, data: project }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating project:', error)
-      toast.error('Error al crear el proyecto')
+      toast.error(error.message || 'Error al crear el proyecto')
       return { success: false }
     } finally {
       setLoading(false)

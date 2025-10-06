@@ -23,16 +23,17 @@ export function useCollaborations() {
     try {
       setLoading(true)
       const { data, error } = await supabase
-        .from('collaborations')
-        .select(`
-          *,
-          projects (
+          .from('collaborations')
+          .select(`
             *,
-            project_authors (*)
-          )
-        `)
-        .eq('collaborator_id', user.id)
-        .order('created_at', { ascending: false })
+            projects (
+              *,
+              project_authors (*),
+              owner:users!projects_created_by_fkey (id, full_name, email, avatar_url)
+            )
+          `)
+          .eq('collaborator_id', user.id)
+          .order('created_at', { ascending: false })
 
       if (error) throw error
 

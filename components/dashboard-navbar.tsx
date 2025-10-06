@@ -111,6 +111,49 @@ export function DashboardNavbar() {
 
       if (error) throw error
 
+      // Crear conversación al aceptar (si no existe)
+      if (status === 'accepted') {
+        // Buscar la solicitud en estado local para obtener datos
+        const req = incomingRequests.find((r: any) => r.id === id)
+
+        let projectId = req?.project_id
+        let collaboratorId = req?.requester?.id ?? req?.collaborator_id
+
+        // Fallback: si no está en memoria, cargar de la BD
+        if (!projectId || !collaboratorId) {
+          const { data: collab, error: collabErr } = await supabase
+            .from('collaborations')
+            .select('project_id, collaborator_id')
+            .eq('id', id)
+            .maybeSingle()
+          if (collabErr) throw collabErr
+          projectId = collab?.project_id
+          collaboratorId = collab?.collaborator_id
+        }
+
+        // Verificar si ya existe conversación
+        const { data: convExisting, error: selError } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('collaboration_id', id)
+          .maybeSingle()
+        if (selError) throw selError
+
+        if (!convExisting) {
+          const { error: convError } = await supabase
+            .from('conversations')
+            .insert({
+              collaboration_id: id,
+              project_id: projectId,
+              owner_id: user!.id,
+              collaborator_id: collaboratorId || '',
+              is_open: true,
+              last_message_at: new Date().toISOString()
+            })
+          if (convError) throw convError
+        }
+      }
+
       toast.success(status === 'accepted' ? 'Solicitud aceptada' : 'Solicitud rechazada')
 
       setIncomingRequests(prev =>

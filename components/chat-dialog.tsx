@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { useChat } from "@/hooks/use-chat"
 import { useAuth } from "@/hooks/use-auth"
 import type { Collaboration } from "@/lib/types"
+import { supabase } from "@/lib/supabase"
 
 interface ChatDialogProps {
   open: boolean
@@ -16,18 +17,28 @@ interface ChatDialogProps {
 
 export function ChatDialog({ open, onOpenChange, collaboration }: ChatDialogProps) {
   const { user } = useAuth()
+  // Nombre de la persona con la que chateas
+  const counterpartName = (() => {
+    const c: any = collaboration
+    if (!c) return 'Chat de Colaboración'
+    const ownerId = c.projects?.created_by
+    // Si soy dueño, muestro colaborador; si soy colaborador, muestro dueño del proyecto
+    if (user?.id === ownerId) {
+      return c?.collaborator?.full_name || c?.collaborator?.email || 'Colaborador'
+    } else {
+      return c?.projects?.owner?.full_name || c?.projects?.owner?.email || 'Propietario'
+    }
+  })()
   const { ensureConversation, conversation, loadMessages, messages, sendMessage, setConversation } = useChat()
   const [input, setInput] = useState("")
 
   useEffect(() => {
     if (!open || !collaboration) return
 
-    // owner es el creador del proyecto; collaborator es quien solicitó
     const projectId = collaboration.project_id
-    const ownerId = collaboration.projects?.created_by || "" // en algunos contextos puedes no tener nested project, ajusta si es necesario
+    const ownerId = collaboration.projects?.created_by || ""
     const collaboratorId = collaboration.collaborator_id
 
-    // Asegurar y cargar conversación
     ensureConversation({
       collaborationId: collaboration.id,
       projectId,
@@ -45,6 +56,20 @@ export function ChatDialog({ open, onOpenChange, collaboration }: ChatDialogProp
     }
   }, [open, setConversation])
 
+  // Marcar como leídos cuando se abre y hay conversación
+  useEffect(() => {
+    const markRead = async () => {
+      if (!conversation?.id || !user) return
+      await supabase
+        .from('messages')
+        .update({ read_at: new Date().toISOString() })
+        .eq('conversation_id', conversation.id)
+        .neq('sender_id', user.id)
+        .is('read_at', null)
+    }
+    markRead()
+  }, [conversation?.id, user?.id])
+
   const handleSend = async () => {
     if (!conversation?.id) return
     const ok = await sendMessage(conversation.id, input)
@@ -55,7 +80,7 @@ export function ChatDialog({ open, onOpenChange, collaboration }: ChatDialogProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Chat de Colaboración</DialogTitle>
+          <DialogTitle>{counterpartName}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">

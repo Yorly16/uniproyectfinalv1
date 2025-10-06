@@ -211,6 +211,67 @@ export type Database = {
           updated_at?: string
         }
       }
+      conversations: {
+        Row: {
+          id: string
+          collaboration_id: string
+          project_id: string
+          owner_id: string
+          collaborator_id: string
+          is_open: boolean
+          last_message_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          collaboration_id: string
+          project_id: string
+          owner_id: string
+          collaborator_id: string
+          is_open?: boolean
+          last_message_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          collaboration_id?: string
+          project_id?: string
+          owner_id?: string
+          collaborator_id?: string
+          is_open?: boolean
+          last_message_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          content: string
+          created_at: string
+          read_at: string | null
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          content: string
+          created_at?: string
+          read_at?: string | null
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string
+          content?: string
+          created_at?: string
+          read_at?: string | null
+        }
+      }
       project_views: {
         Row: {
           id: string

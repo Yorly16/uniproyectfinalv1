@@ -180,7 +180,7 @@ export function RegisterForm() {
                   <Input
                     id="university"
                     type="text"
-                    placeholder="Universidad Nacional de Colombia"
+                    placeholder="Universidad Tecnológia del Perú"
                     className="pl-10"
                     value={university}
                     onChange={(e) => setUniversity(e.target.value)}
@@ -255,14 +255,14 @@ export function RegisterForm() {
 
           <Alert>
             <AlertDescription className="text-sm">
-              <strong>Nota:</strong> Esta es una interfaz de demostración. Conecta tu backend para funcionalidad
-              completa.
+              <strong>Nota: Recuerda Validar Tu email antes de Iniciar Sesión</strong>
             </AlertDescription>
           </Alert>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {isLoading ? "Creando cuenta..." : "Crear Cuenta"}
           </Button>
 

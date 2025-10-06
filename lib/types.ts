@@ -20,6 +20,10 @@ export type Collaboration = Database['public']['Tables']['collaborations']['Row'
 export type CollaborationInsert = Database['public']['Tables']['collaborations']['Insert']
 export type CollaborationUpdate = Database['public']['Tables']['collaborations']['Update']
 
+export type Conversation = Database['public']['Tables']['conversations']['Row']
+export type ConversationInsert = Database['public']['Tables']['conversations']['Insert']
+export type Message = Database['public']['Tables']['messages']['Row']
+
 // Se eliminan tipos relacionados a likes y vistas
 // export type ProjectView = Database['public']['Tables']['project_views']['Row']
 // export type ProjectLike = Database['public']['Tables']['project_likes']['Row']

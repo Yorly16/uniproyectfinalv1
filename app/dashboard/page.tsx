@@ -322,6 +322,28 @@ export default function DashboardPage() {
                                       })
                                       .eq('id', req.id)
                                     if (error) throw error
+
+                                    // Crear conversación si no existe
+                                    const { data: convExisting } = await supabase
+                                      .from('conversations')
+                                      .select('id')
+                                      .eq('collaboration_id', req.id)
+                                      .maybeSingle()
+
+                                    if (!convExisting) {
+                                      const { error: convError } = await supabase
+                                        .from('conversations')
+                                        .insert({
+                                          collaboration_id: req.id,
+                                          project_id: req.project_id,
+                                          owner_id: user!.id,
+                                          collaborator_id: req.requester?.id || '',
+                                          is_open: true,
+                                          last_message_at: new Date().toISOString()
+                                        })
+                                      if (convError) throw convError
+                                    }
+
                                     setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted', message: combinedMessage || r.message } : r))
                                     toast.success('Colaboración aceptada')
                                   } catch (e: any) {

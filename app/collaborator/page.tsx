@@ -14,6 +14,7 @@ import { mockProjects } from "@/lib/mock-data"
 import { useCollaborations } from "@/hooks/use-collaborations"
 import { useProjects } from "@/hooks/use-projects"
 import { useAuth } from "@/hooks/use-auth"
+import { ChatDialog } from "@/components/chat-dialog"
 import { Briefcase, Clock, TrendingUp, Award, Users, Search, Filter, Target, SortAsc, X, Calendar, MessageCircle, BookOpen } from "lucide-react"
 
 interface User {
@@ -37,6 +38,8 @@ export default function CollaboratorPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const { projects, loading: projectsLoading } = useProjects()
   const { collaborations } = useCollaborations()
+  const [chatOpen, setChatOpen] = useState(false)
+  const [selectedCollab, setSelectedCollab] = useState<any | null>(null)
   const { user, userProfile, loading: authLoading } = useAuth()
 
   const isLoading = authLoading || projectsLoading
@@ -424,7 +427,18 @@ export default function CollaboratorPage() {
                       <Button variant="outline" size="sm" className="flex-1">
                         Ver Proyecto
                       </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (collaboration.status === "accepted") {
+                            setSelectedCollab(collaboration)
+                            setChatOpen(true)
+                          } else {
+                            alert("El chat está disponible cuando la colaboración es aceptada.")
+                          }
+                        }}
+                      >
                         <MessageCircle className="h-4 w-4" />
                       </Button>
                     </div>
@@ -449,6 +463,7 @@ export default function CollaboratorPage() {
       )}
     </TabsContent>
   </Tabs>
+        <ChatDialog open={chatOpen} onOpenChange={setChatOpen} collaboration={selectedCollab} />
       </main>
     </div>
   )

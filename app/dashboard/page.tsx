@@ -82,24 +82,45 @@ export default function DashboardPage() {
         if (projError) throw projError
 
         const projectIds = (myProjects || []).map((p) => p.id)
-        if (projectIds.length === 0) {
-          setActivityRequests([])
-          return
+
+        // 1) Solicitudes que llegaron a mis proyectos (yo soy dueño)
+        let collabsOwner: any[] = []
+        if (projectIds.length > 0) {
+          const { data: ownerData, error: collabError } = await supabase
+            .from('collaborations')
+            .select(`
+              *,
+              projects:projects(*),
+              requester:users!collaborations_collaborator_id_fkey (id, full_name, email, avatar_url)
+            `)
+            .in('project_id', projectIds)
+            .order('created_at', { ascending: false })
+          if (collabError) throw collabError
+          collabsOwner = ownerData || []
         }
 
-        const { data: collabs, error: collabError } = await supabase
+        // 2) Solicitudes que YO envié para colaborar (yo soy colaborador) — sin filtrar por estado
+        const { data: myRequests, error: myReqError } = await supabase
           .from('collaborations')
           .select(`
             *,
             projects:projects(*),
-            requester:users!collaborations_collaborator_id_fkey (id, full_name, email, avatar_url)
+            owner:users!projects_created_by_fkey (id, full_name, email, avatar_url)
           `)
-          .in('project_id', projectIds)
+          .eq('collaborator_id', user.id)
           .order('created_at', { ascending: false })
+        if (myReqError) throw myReqError
 
-        if (collabError) throw collabError
+        const combined = [
+          ...(collabsOwner.map((r) => ({ ...r, role: 'incoming-to-my-project' })) || []),
+          ...((myRequests || []).map((r) => ({ ...r, role: 'requested-by-me' }))),
+        ].sort((a, b) => {
+          const aDate = new Date(a.created_at || a.updated_at || Date.now()).getTime()
+          const bDate = new Date(b.created_at || b.updated_at || Date.now()).getTime()
+          return bDate - aDate
+        })
 
-        setActivityRequests(collabs || [])
+        setActivityRequests(combined)
       } catch (err) {
         console.error('Error cargando actividad reciente:', err)
       }
@@ -281,7 +302,7 @@ export default function DashboardPage() {
               {activityRequests.length === 0 ? (
                 <Card>
                   <CardContent className="p-4 text-sm text-muted-foreground">
-                    Aún no hay solicitudes de colaboración en tus proyectos.
+                    Aún no hay actividad reciente.
                   </CardContent>
                 </Card>
               ) : (
@@ -293,15 +314,24 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1">
                         <p className="font-medium">
-                          {req.requester?.full_name || req.requester?.email || 'Usuario'} solicitó colaborar en "{req.projects?.name || 'Proyecto'}"
-                        </p>
+                  {req.role === 'incoming-to-my-project' ? (
+                    <>
+                      {req.requester?.full_name || req.requester?.email || 'Usuario'} solicitó colaborar en "{req.projects?.name || 'Proyecto'}"
+                    </>
+                  ) : (
+                    <>
+                      Solicitaste colaborar en "{req.projects?.name || 'Proyecto'}" de {req.owner?.full_name || req.owner?.email || 'Propietario'}
+                    </>
+                  )}
+                </p>
                         {req.message && (
                           <p className="text-sm text-muted-foreground mt-1">
                             Mensaje: {req.message}
                           </p>
                         )}
                         <div className="mt-2 flex items-center gap-2">
-                          {req.status === 'pending' ? (
+                  {req.role === 'incoming-to-my-project' ? (
+                    req.status === 'pending' ? (
                             <>
                               <Button
                                 size="sm"
@@ -388,7 +418,20 @@ export default function DashboardPage() {
                             <Badge variant="secondary">
                               {req.status === 'accepted' ? 'Aceptada' : req.status === 'rejected' ? 'Rechazada' : req.status === 'completed' ? 'Completada' : 'Pendiente'}
                             </Badge>
-                          )}
+                          )
+                  ) : (
+                    // requested-by-me (yo envié solicitud)
+                    <>
+                      <Badge variant="secondary">
+                        {req.status === 'accepted' ? 'Aceptada' : req.status === 'rejected' ? 'Rechazada' : req.status === 'completed' ? 'Completada' : 'Pendiente'}
+                      </Badge>
+                      {req.status === 'accepted' && (
+                        <Button size="sm" onClick={() => router.push('/projects')}>
+                          Abrir chat
+                        </Button>
+                      )}
+                    </>
+                  )}
                         </div>
                       </div>
                     </CardContent>

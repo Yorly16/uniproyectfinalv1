@@ -97,9 +97,13 @@ export default function ProjectsChatPage() {
 
   // Colaboraciones a mostrar:
   // - Si soy estudiante (dueño), mostrar las aceptadas de mis proyectos
+  //   y también las colaboraciones aceptadas donde YO fui aceptado en proyectos ajenos.
   // - Si soy colaborador, mostrar mis colaboraciones filtradas a las aceptadas
   const collabsToShow = userProfile?.user_type === 'student'
-    ? ownerAccepted
+    ? [
+        ...ownerAccepted,
+        ...collaborations.filter(c => c.status === 'accepted')
+      ]
     : collaborations.filter(c => c.status === 'accepted')
 
   // IDs de colaboraciones para el polling

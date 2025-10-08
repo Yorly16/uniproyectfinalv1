@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
@@ -13,8 +13,14 @@ export function useAuth() {
   const [userProfile, setUserProfile] = useState<UserWithProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
+  // Blindaje contra doble inicialización en Strict Mode
+  const initRef = useRef(false)
 
   useEffect(() => {
+    // Ejecutar solo una vez
+    if (initRef.current) return
+    initRef.current = true
+
     // Obtener sesión inicial
     getInitialSession()
 
@@ -44,7 +50,7 @@ export function useAuth() {
     })
 
     return () => subscription.unsubscribe()
-  }, [router])
+  }, [])
 
   const getInitialSession = async () => {
     try {

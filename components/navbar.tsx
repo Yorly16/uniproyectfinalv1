@@ -54,7 +54,7 @@ export function Navbar() {
           ) : user ? (
             <Link href="/dashboard">
               <Button size="sm">
-                Dashboard
+                Mi Perfil
               </Button>
             </Link>
           ) : (

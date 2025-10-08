@@ -166,7 +166,7 @@ export function DashboardNavbar() {
     }
   }
 
-  if (loading || !user || !userProfile) {
+  if (loading || !user) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -182,7 +182,7 @@ export function DashboardNavbar() {
               <span className="text-xl font-bold text-balance">Uni Project</span>
             </Link>
           </div>
-          <div className="text-sm text-muted-foreground">Cargando...</div>
+          <div className="text-sm text-muted-foreground">Loading...</div>
         </div>
       </nav>
     )

@@ -31,6 +31,8 @@ export default function ProjectsChatPage() {
   const { ensureConversation, conversation, loadMessages, messages, sendMessage, setConversation } = useChat()
   const [messageInput, setMessageInput] = useState("")
   const [lastTimes, setLastTimes] = useState<Record<string, string | null>>({})
+  // Para auto-scroll del panel de mensajes
+  const [messagesEl, setMessagesEl] = useState<HTMLDivElement | null>(null)
 
   // Estado para colaboraciones aceptadas del dueño (estudiante)
   const [ownerAccepted, setOwnerAccepted] = useState<any[]>([])
@@ -126,6 +128,13 @@ export default function ProjectsChatPage() {
     return !q || counterpart.toLowerCase().includes(q) || projectName.toLowerCase().includes(q)
   })
 
+  // Ordenar por última actividad (last_message_at / updated_at / created_at)
+  const sortedCollabs = [...filteredCollabs].sort((a, b) => {
+    const ta = new Date(lastTimes[a.id] ?? a.updated_at ?? a.created_at).getTime()
+    const tb = new Date(lastTimes[b.id] ?? b.updated_at ?? b.created_at).getTime()
+    return tb - ta
+  })
+
   useEffect(() => {
     if (!user || collabsToShow.length === 0) {
       setUnreadCounts({})
@@ -203,6 +212,17 @@ export default function ProjectsChatPage() {
     markRead()
   }, [conversation?.id, user?.id])
 
+  // Auto-scroll y actualización de última actividad cuando llegan mensajes
+  useEffect(() => {
+    if (messagesEl) {
+      messagesEl.scrollTop = messagesEl.scrollHeight
+    }
+    if (selectedCollab && messages.length > 0) {
+      const last = messages[messages.length - 1]
+      setLastTimes((prev) => ({ ...prev, [selectedCollab.id]: last.created_at }))
+    }
+  }, [messages, selectedCollab?.id, messagesEl])
+
   const handleSend = async () => {
     if (!conversation?.id || !messageInput.trim()) return
     const ok = await sendMessage(conversation.id, messageInput)
@@ -260,7 +280,7 @@ export default function ProjectsChatPage() {
             <section className="mb-8">
               <h1 className="text-3xl font-bold tracking-tight">
                 {userProfile?.user_type === 'student'
-                  ? 'Chat de Colaboraciones Aceptadas (Mis Proyectos)'
+                  ? 'Chat de Colaboraciones Aceptadas '
                   : 'Chat de Mis Colaboraciones Aceptadas'}
               </h1>
               <p className="text-muted-foreground mt-2">
@@ -271,7 +291,7 @@ export default function ProjectsChatPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Lista de conversaciones (estilo Messenger) */}
-            <section className="md:col-span-1 rounded-xl border bg-card">
+            <section className="md:col-span-1 rounded-xl border bg-card h-[70vh] flex flex-col">
               <div className="p-4 border-b">
                 <h2 className="text-lg font-semibold">Chats</h2>
                 <div className="mt-3">
@@ -284,18 +304,22 @@ export default function ProjectsChatPage() {
               </div>
 
               {/* Items */}
-              <div className="p-2 space-y-1 max-h-[70vh] overflow-y-auto">
-                {filteredCollabs.length === 0 ? (
+              <div className="p-2 space-y-1 overflow-y-auto flex-1">
+                {sortedCollabs.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground">No hay conversaciones.</div>
                 ) : (
-                  filteredCollabs.map((c) => {
+                  sortedCollabs.map((c) => {
                     const counterpart = getCounterpartName(c)
                     const projectName = c.projects?.name || "Proyecto"
                     const isActive = selectedCollab?.id === c.id
                     return (
                       <button
                         key={c.id}
-                        onClick={() => setSelectedCollab(c)}
+                        onClick={() => {
+                          setSelectedCollab(c)
+                          // Al abrir, ponemos no leídos a 0 inmediatamente (además del marcado en backend)
+                          setUnreadCounts((prev) => ({ ...prev, [c.id]: 0 }))
+                        }}
                         className={`w-full text-left rounded-lg px-3 py-2 flex items-center gap-3 transition-colors ${
                           isActive ? "bg-accent/50" : "hover:bg-accent/30"
                         }`}
@@ -330,7 +354,7 @@ export default function ProjectsChatPage() {
             </section>
 
             {/* Panel de mensajes */}
-            <section className="md:col-span-2 rounded-xl border bg-card flex flex-col min-h-[70vh]">
+            <section className="md:col-span-2 rounded-xl border bg-card flex flex-col h-[70vh]">
               {/* Header del chat */}
               <div className="p-4 border-b">
                 {!selectedCollab ? (
@@ -346,7 +370,7 @@ export default function ProjectsChatPage() {
               </div>
 
               {/* Área de mensajes */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-2 bg-muted/30">
+              <div ref={(el) => setMessagesEl(el)} className="flex-1 p-4 overflow-y-auto space-y-2 bg-muted/30">
                 {!selectedCollab ? (
                   <div className="text-sm text-muted-foreground">No hay mensajes.</div>
                 ) : messages.length === 0 ? (

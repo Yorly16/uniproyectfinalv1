@@ -89,15 +89,24 @@ export function useChat() {
     if (!content.trim()) return { success: false }
 
     try {
-      const { error } = await supabase
+      // Insert con retorno del registro para actualización optimista
+      const { data: inserted, error } = await supabase
         .from("messages")
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
           content: content.trim()
         })
+        .select("*")
+        .single()
 
       if (error) throw error
+
+      // Optimista: añadir al estado si no existe
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === inserted.id)) return prev
+        return [...prev, inserted]
+      })
 
       // Actualizar last_message_at
       await supabase
@@ -113,7 +122,7 @@ export function useChat() {
     }
   }, [user])
 
-  // Suscripción en tiempo real a nuevos mensajes de la conversación
+  // Suscripción en tiempo real a nuevos mensajes de la conversación (con deduplicación)
   useEffect(() => {
     if (!conversation?.id) return
 
@@ -126,7 +135,10 @@ export function useChat() {
         filter: `conversation_id=eq.${conversation.id}`,
       }, (payload) => {
         const newMsg = payload.new as Message
-        setMessages((prev) => [...prev, newMsg])
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newMsg.id)) return prev
+          return [...prev, newMsg]
+        })
       })
       .subscribe()
 
@@ -134,6 +146,15 @@ export function useChat() {
       supabase.removeChannel(channel)
     }
   }, [conversation?.id])
+
+  // Polling de respaldo por si Realtime no está habilitado (cada 3s)
+  useEffect(() => {
+    if (!conversation?.id) return
+    const interval = setInterval(() => {
+      loadMessages(conversation.id!)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [conversation?.id, loadMessages])
 
   return {
     conversation,

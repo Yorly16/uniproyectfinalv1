@@ -8,10 +8,11 @@ import { useAuth } from "@/hooks/use-auth"
 import { useCollaborations } from "@/hooks/use-collaborations"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ChatDialog } from "@/components/chat-dialog"
 import { MessageCircle, Users, ArrowLeft } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import type { Collaboration } from "@/lib/types"
+import { Input } from "@/components/ui/input"
+import { useChat } from "@/hooks/use-chat"
 
 // Navbars (cargados dinámicamente para evitar SSR issues)
 const GeneralNavbar = dynamic(() => import("@/components/navbar").then(m => m.Navbar), { ssr: false })
@@ -22,9 +23,14 @@ export default function ProjectsChatPage() {
   const router = useRouter()
   const { user, userProfile, loading: authLoading } = useAuth()
   const { collaborations, loading } = useCollaborations()
-  const [chatOpen, setChatOpen] = useState(false)
   const [selectedCollab, setSelectedCollab] = useState<any | null>(null)
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [searchTerm, setSearchTerm] = useState("")
+
+  // Hook de chat para gestionar conversación y mensajes en el panel derecho
+  const { ensureConversation, conversation, loadMessages, messages, sendMessage, setConversation } = useChat()
+  const [messageInput, setMessageInput] = useState("")
+  const [lastTimes, setLastTimes] = useState<Record<string, string | null>>({})
 
   // Estado para colaboraciones aceptadas del dueño (estudiante)
   const [ownerAccepted, setOwnerAccepted] = useState<any[]>([])
@@ -109,28 +115,41 @@ export default function ProjectsChatPage() {
   // IDs de colaboraciones para el polling
   const collabIds = collabsToShow.map(c => c.id).join(',')
 
+  // Filtrado por buscador (por nombre de contraparte o nombre de proyecto)
+  const filteredCollabs = collabsToShow.filter((c) => {
+    const counterpart =
+      userProfile?.user_type === 'student'
+        ? (c.collaborator?.full_name || c.collaborator?.email || "")
+        : (c.projects?.owner?.full_name || c.projects?.owner?.email || "")
+    const projectName = c.projects?.name || ""
+    const q = searchTerm.toLowerCase().trim()
+    return !q || counterpart.toLowerCase().includes(q) || projectName.toLowerCase().includes(q)
+  })
+
   useEffect(() => {
     if (!user || collabsToShow.length === 0) {
       setUnreadCounts({})
+      setLastTimes({})
       return
     }
 
     const loadUnread = async () => {
       const next: Record<string, number> = {}
+      const nextTimes: Record<string, string | null> = {}
       for (const c of collabsToShow) {
-        // Buscar conversación por colaboración
+        // Buscar conversación y meta (último mensaje)
         const { data: conv } = await supabase
           .from('conversations')
-          .select('id')
+          .select('id,last_message_at,updated_at')
           .eq('collaboration_id', c.id)
           .maybeSingle()
 
         if (!conv?.id) {
           next[c.id] = 0
+          nextTimes[c.id] = null
           continue
         }
 
-        // Contar mensajes no leídos (del otro usuario)
         const { count } = await supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
@@ -139,15 +158,78 @@ export default function ProjectsChatPage() {
           .is('read_at', null)
 
         next[c.id] = count || 0
+        nextTimes[c.id] = conv.last_message_at || conv.updated_at || null
       }
       setUnreadCounts(next)
+      setLastTimes(nextTimes)
     }
 
-    // Carga inicial + polling cada 5s
     loadUnread()
     const interval = setInterval(loadUnread, 5000)
     return () => clearInterval(interval)
   }, [user?.id, collabIds])
+
+  // Cuando seleccionas una colaboración, aseguro/obtengo la conversación y cargo mensajes
+  useEffect(() => {
+    const run = async () => {
+      if (!selectedCollab) return
+      const projectId = selectedCollab.project_id
+      const ownerId = selectedCollab.projects?.created_by || ""
+      const collaboratorId = selectedCollab.collaborator_id
+      const conv = await ensureConversation({
+        collaborationId: selectedCollab.id,
+        projectId,
+        ownerId,
+        collaboratorId
+      })
+      if (conv?.id) {
+        await loadMessages(conv.id)
+      }
+    }
+    run()
+  }, [selectedCollab, ensureConversation, loadMessages])
+
+  // Marcar como leído al abrir conversación
+  useEffect(() => {
+    const markRead = async () => {
+      if (!conversation?.id || !user) return
+      await supabase
+        .from('messages')
+        .update({ read_at: new Date().toISOString() })
+        .eq('conversation_id', conversation.id)
+        .neq('sender_id', user.id)
+        .is('read_at', null)
+    }
+    markRead()
+  }, [conversation?.id, user?.id])
+
+  const handleSend = async () => {
+    if (!conversation?.id || !messageInput.trim()) return
+    const ok = await sendMessage(conversation.id, messageInput)
+    if (ok.success) setMessageInput("")
+  }
+
+  // Helper para mostrar tiempo relativo del último mensaje
+  const formatRelative = (iso?: string | null) => {
+    if (!iso) return ""
+    const now = Date.now()
+    const t = new Date(iso).getTime()
+    const diff = Math.max(0, Math.floor((now - t) / 1000))
+    if (diff < 60) return "Ahora"
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+    return "Ayer"
+  }
+
+  // Obtener nombre de contraparte y proyecto para cada item
+  const getCounterpartName = (c: any) => {
+    const ownerId = c.projects?.created_by
+    if (user?.id === ownerId) {
+      return c?.collaborator?.full_name || c?.collaborator?.email || 'Colaborador'
+    } else {
+      return c?.projects?.owner?.full_name || c?.projects?.owner?.email || 'Propietario'
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -187,76 +269,125 @@ export default function ProjectsChatPage() {
             </section>
 
 
-            {/* Estado vacío */}
-            {collabsToShow.length === 0 ? (
-              <div className="text-center py-24">
-                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h2 className="text-xl font-semibold mb-2">No hay colaboraciones aceptadas</h2>
-                <p className="text-muted-foreground mb-6">
-                  {userProfile?.user_type === 'student'
-                    ? 'Cuando aceptes solicitudes en tus proyectos, aparecerán aquí para chatear.'
-                    : 'Explora proyectos y envía solicitudes. Cuando te acepten, aparecerán aquí.'}
-                </p>
-                <Button onClick={() => router.push(userProfile?.user_type === 'student' ? "/dashboard" : "/collaborator")}>
-                  {userProfile?.user_type === 'student' ? 'Ir a mi panel' : 'Ir al panel de colaborador'}
-                </Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Lista de conversaciones (estilo Messenger) */}
+            <section className="md:col-span-1 rounded-xl border bg-card">
+              <div className="p-4 border-b">
+                <h2 className="text-lg font-semibold">Chats</h2>
+                <div className="mt-3">
+                  <Input
+                    placeholder="Buscar conversaciones"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {collabsToShow.map((c) => (
-                  <div
-                    key={c.id}
-                    className="group flex items-center justify-between rounded-xl border bg-card/50 px-4 py-3 transition-colors hover:bg-accent/40"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-semibold">{c.projects?.name || "Proyecto"}</h3>
-                        <Badge variant="secondary" className="text-xs">{c.status}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {userProfile?.user_type === 'student'
-                          ? `Con: ${c.collaborator?.full_name || c.collaborator?.email || 'Colaborador'}`
-                          : `Con: ${c.projects?.owner?.full_name || c.projects?.owner?.email || 'Propietario'}`
-                        }
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Desde {new Date(c.started_at ?? c.created_at).toLocaleDateString("es-ES")}
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => router.push(`/projects/${c.project_id}`)}>
-                        Ver proyecto
-                      </Button>
-                      <div className="relative">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedCollab(c)
-                            setChatOpen(true)
-                          }}
-                          className="gap-2"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                          Abrir chat
-                        </Button>
+              {/* Items */}
+              <div className="p-2 space-y-1 max-h-[70vh] overflow-y-auto">
+                {filteredCollabs.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground">No hay conversaciones.</div>
+                ) : (
+                  filteredCollabs.map((c) => {
+                    const counterpart = getCounterpartName(c)
+                    const projectName = c.projects?.name || "Proyecto"
+                    const isActive = selectedCollab?.id === c.id
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedCollab(c)}
+                        className={`w-full text-left rounded-lg px-3 py-2 flex items-center gap-3 transition-colors ${
+                          isActive ? "bg-accent/50" : "hover:bg-accent/30"
+                        }`}
+                      >
+                        {/* Placeholder avatar con inicial */}
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-semibold">
+                          {(counterpart?.[0] || "U").toUpperCase()}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium truncate">{counterpart}</span>
+                            <span className="text-[11px] text-muted-foreground">{formatRelative(lastTimes[c.id])}</span>
+                          </div>
+                          {/* Debajo del nombre, el proyecto */}
+                          <div className="text-xs text-muted-foreground truncate">
+                            {projectName}
+                          </div>
+                        </div>
+
+                        {/* Badge de no leídos */}
                         {unreadCounts[c.id] > 0 && (
-                          <span
-                            title={`${unreadCounts[c.id]} mensajes nuevos`}
-                            className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] leading-none px-1 rounded-full"
-                          >
+                          <span className="ml-2 bg-red-500 text-white text-[11px] px-2 py-[2px] rounded-full">
                             {unreadCounts[c.id]}
                           </span>
                         )}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </section>
+
+            {/* Panel de mensajes */}
+            <section className="md:col-span-2 rounded-xl border bg-card flex flex-col min-h-[70vh]">
+              {/* Header del chat */}
+              <div className="p-4 border-b">
+                {!selectedCollab ? (
+                  <div className="text-sm text-muted-foreground">Selecciona una conversación para empezar a chatear.</div>
+                ) : (
+                  <>
+                    <div className="font-semibold">{getCounterpartName(selectedCollab)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedCollab.projects?.name || "Proyecto"}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Área de mensajes */}
+              <div className="flex-1 p-4 overflow-y-auto space-y-2 bg-muted/30">
+                {!selectedCollab ? (
+                  <div className="text-sm text-muted-foreground">No hay mensajes.</div>
+                ) : messages.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No hay mensajes aún.</div>
+                ) : (
+                  messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`max-w-[75%] p-2 rounded-lg text-sm ${
+                        m.sender_id === user?.id
+                          ? "bg-primary/10 ml-auto"
+                          : "bg-secondary/50"
+                      }`}
+                    >
+                      {m.content}
+                      <div className="text-[10px] text-muted-foreground mt-1">
+                        {new Date(m.created_at).toLocaleString("es-ES")}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
-            )}
 
-            {/* Dialog de chat */}
-            <ChatDialog open={chatOpen} onOpenChange={setChatOpen} collaboration={selectedCollab} />
+              {/* Input de mensaje */}
+              <div className="p-4 border-t flex gap-2">
+                <Input
+                  placeholder="Escribe un mensaje..."
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      handleSend()
+                    }
+                  }}
+                  disabled={!conversation?.id}
+                />
+                <Button onClick={handleSend} disabled={!conversation?.id}>Enviar</Button>
+              </div>
+            </section>
+          </div>
           </>
         )}
       </main>

@@ -74,16 +74,16 @@ export default function DashboardPage() {
     const loadActivity = async () => {
       if (!user) return
       try {
+        // Proyectos creados por mí (soy dueño)
         const { data: myProjects, error: projError } = await supabase
           .from('projects')
-          .select('id, name')
+          .select('id, name, created_by')
           .eq('created_by', user.id)
 
         if (projError) throw projError
-
         const projectIds = (myProjects || []).map((p) => p.id)
 
-        // 1) Solicitudes que llegaron a mis proyectos (yo soy dueño)
+        // 1) Solicitudes que llegaron a mis proyectos (yo soy el dueño)
         let collabsOwner: any[] = []
         if (projectIds.length > 0) {
           const { data: ownerData, error: collabError } = await supabase
@@ -96,27 +96,29 @@ export default function DashboardPage() {
             .in('project_id', projectIds)
             .order('created_at', { ascending: false })
           if (collabError) throw collabError
-          collabsOwner = ownerData || []
+          collabsOwner = (ownerData || []).map((r) => ({ ...r, role: 'incoming-to-my-project' }))
         }
 
-        // 2) Solicitudes que YO envié para colaborar (yo soy colaborador) — sin filtrar por estado
+        // 2) Solicitudes que YO envié para colaborar (soy colaborador)
         const { data: myRequests, error: myReqError } = await supabase
           .from('collaborations')
           .select(`
             *,
-            projects:projects(*),
-            owner:users!projects_created_by_fkey (id, full_name, email, avatar_url)
+            projects:projects(
+              *,
+              owner:users!projects_created_by_fkey (id, full_name, email, avatar_url)
+            )
           `)
           .eq('collaborator_id', user.id)
           .order('created_at', { ascending: false })
         if (myReqError) throw myReqError
 
-        const combined = [
-          ...(collabsOwner.map((r) => ({ ...r, role: 'incoming-to-my-project' })) || []),
-          ...((myRequests || []).map((r) => ({ ...r, role: 'requested-by-me' }))),
-        ].sort((a, b) => {
-          const aDate = new Date(a.created_at || a.updated_at || Date.now()).getTime()
-          const bDate = new Date(b.created_at || b.updated_at || Date.now()).getTime()
+        const myRequestsWithRole = (myRequests || []).map((r) => ({ ...r, role: 'requested-by-me' }))
+
+        // Unir y ordenar por la última actividad
+        const combined = [...collabsOwner, ...myRequestsWithRole].sort((a, b) => {
+          const aDate = new Date(a.updated_at || a.created_at || Date.now()).getTime()
+          const bDate = new Date(b.updated_at || b.created_at || Date.now()).getTime()
           return bDate - aDate
         })
 
@@ -296,150 +298,135 @@ export default function DashboardPage() {
 
           {/* Tab: Actividad Reciente */}
           <TabsContent value="activity" className="space-y-6">
-            <h2 className="text-2xl font-bold">Actividad Reciente</h2>
-            
-            <div className="space-y-4">
-              {activityRequests.length === 0 ? (
-                <Card>
-                  <CardContent className="p-4 text-sm text-muted-foreground">
-                    Aún no hay actividad reciente.
-                  </CardContent>
-                </Card>
-              ) : (
-                activityRequests.map((req) => (
-                  <Card key={req.id}>
-                    <CardContent className="flex items-start gap-4 p-4">
-                      <div className="flex-shrink-0">
-                        <MessageCircle className="h-5 w-5 text-green-500" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">
-                  {req.role === 'incoming-to-my-project' ? (
+    <h2 className="text-2xl font-bold">Actividad Reciente</h2>
+    
+    <div className="space-y-4">
+      {activityRequests.length === 0 ? (
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Aún no hay actividad reciente.
+          </CardContent>
+        </Card>
+      ) : (
+        activityRequests.map((req) => (
+          <Card key={req.id}>
+            <CardContent className="flex items-start gap-4 p-4">
+              <div className="flex-shrink-0">
+                <MessageCircle className="h-5 w-5 text-green-500" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">
+                    {req.role === 'incoming-to-my-project' ? (
+                      <>
+                        {req.requester?.full_name || req.requester?.email || 'Usuario'} solicitó colaborar en "{req.projects?.name || 'Proyecto'}"
+                      </>
+                    ) : (
+                      <>
+                        Solicitaste colaborar en "{req.projects?.name || 'Proyecto'}" de {req.projects?.owner?.full_name || req.projects?.owner?.email || 'Propietario'}
+                      </>
+                    )}
+                  </p>
+                  {req.status && (
+                    <Badge variant={req.status === 'accepted' ? 'default' : 'secondary'}>
+                      {req.status === 'accepted' ? 'Aceptado' : req.status === 'pending' ? 'Pendiente' : req.status}
+                    </Badge>
+                  )}
+                </div>
+
+                {req.message && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Mensaje: {req.message}
+                  </p>
+                )}
+
+                <div className="mt-2 flex items-center gap-2">
+                  {req.role === 'incoming-to-my-project' && req.status === 'pending' ? (
                     <>
-                      {req.requester?.full_name || req.requester?.email || 'Usuario'} solicitó colaborar en "{req.projects?.name || 'Proyecto'}"
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                        .from('collaborations')
+                        .update({
+                          status: 'accepted',
+                          started_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString()
+                        })
+                        .eq('id', req.id)
+                      if (error) throw error
+
+                            // Crear conversación si no existe
+                            const { data: convExisting } = await supabase
+                              .from('conversations')
+                              .select('id')
+                              .eq('collaboration_id', req.id)
+                              .maybeSingle()
+
+                            if (!convExisting) {
+                              const { error: convError } = await supabase
+                                .from('conversations')
+                                .insert({
+                                  collaboration_id: req.id,
+                                  project_id: req.project_id,
+                                  owner_id: user!.id,
+                                  collaborator_id: req.requester?.id || '',
+                                  is_open: true,
+                                  last_message_at: new Date().toISOString()
+                                })
+                              if (convError) throw convError
+                            }
+
+                            setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted' } : r))
+                            toast.success('Colaboración aceptada')
+                          } catch (e: any) {
+                            console.error(e)
+                            toast.error(e.message || 'Error al aceptar colaboración')
+                          }
+                        }}
+                      >
+                        Aceptar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('collaborations')
+                              .update({
+                                status: 'rejected',
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', req.id)
+                            if (error) throw error
+                            setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected' } : r))
+                            toast.success('Solicitud rechazada')
+                          } catch (e: any) {
+                            console.error(e)
+                            toast.error(e.message || 'Error al rechazar solicitud')
+                          }
+                        }}
+                      >
+                        Rechazar
+                      </Button>
                     </>
                   ) : (
-                    <>
-                      Solicitaste colaborar en "{req.projects?.name || 'Proyecto'}" de {req.owner?.full_name || req.owner?.email || 'Propietario'}
-                    </>
+                    <Link href={`/projects/${req.project_id}`}>
+                      <Button size="sm" variant="ghost">
+                        Ver proyecto
+                      </Button>
+                    </Link>
                   )}
-                </p>
-                        {req.message && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Mensaje: {req.message}
-                          </p>
-                        )}
-                        <div className="mt-2 flex items-center gap-2">
-                  {req.role === 'incoming-to-my-project' ? (
-                    req.status === 'pending' ? (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={async () => {
-                                  const reply = window.prompt('Mensaje para el solicitante (opcional):', '') ?? ''
-                                  try {
-                                    let combinedMessage = req.message || ''
-                                    if (reply.trim()) {
-                                      combinedMessage = (combinedMessage ? combinedMessage + '\n\n' : '') + `Respuesta del estudiante: ${reply.trim()}`
-                                    }
-                                    const { error } = await supabase
-                                      .from('collaborations')
-                                      .update({
-                                        status: 'accepted',
-                                        started_at: new Date().toISOString(),
-                                        updated_at: new Date().toISOString(),
-                                        message: combinedMessage || req.message
-                                      })
-                                      .eq('id', req.id)
-                                    if (error) throw error
-
-                                    // Crear conversación si no existe
-                                    const { data: convExisting } = await supabase
-                                      .from('conversations')
-                                      .select('id')
-                                      .eq('collaboration_id', req.id)
-                                      .maybeSingle()
-
-                                    if (!convExisting) {
-                                      const { error: convError } = await supabase
-                                        .from('conversations')
-                                        .insert({
-                                          collaboration_id: req.id,
-                                          project_id: req.project_id,
-                                          owner_id: user!.id,
-                                          collaborator_id: req.requester?.id || '',
-                                          is_open: true,
-                                          last_message_at: new Date().toISOString()
-                                        })
-                                      if (convError) throw convError
-                                    }
-
-                                    setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted', message: combinedMessage || r.message } : r))
-                                    toast.success('Colaboración aceptada')
-                                  } catch (e: any) {
-                                    console.error(e)
-                                    toast.error(e.message || 'Error al aceptar')
-                                  }
-                                }}
-                              >
-                                Aceptar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={async () => {
-                                  const reply = window.prompt('Motivo de rechazo (opcional):', '') ?? ''
-                                  try {
-                                    let combinedMessage = req.message || ''
-                                    if (reply.trim()) {
-                                      combinedMessage = (combinedMessage ? combinedMessage + '\n\n' : '') + `Respuesta del estudiante: ${reply.trim()}`
-                                    }
-                                    const { error } = await supabase
-                                      .from('collaborations')
-                                      .update({
-                                        status: 'rejected',
-                                        updated_at: new Date().toISOString(),
-                                        message: combinedMessage || req.message
-                                      })
-                                      .eq('id', req.id)
-                                    if (error) throw error
-                                    setActivityRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', message: combinedMessage || r.message } : r))
-                                    toast.success('Colaboración rechazada')
-                                  } catch (e: any) {
-                                    console.error(e)
-                                    toast.error(e.message || 'Error al rechazar')
-                                  }
-                                }}
-                              >
-                                Rechazar
-                              </Button>
-                            </>
-                          ) : (
-                            <Badge variant="secondary">
-                              {req.status === 'accepted' ? 'Aceptada' : req.status === 'rejected' ? 'Rechazada' : req.status === 'completed' ? 'Completada' : 'Pendiente'}
-                            </Badge>
-                          )
-                  ) : (
-                    // requested-by-me (yo envié solicitud)
-                    <>
-                      <Badge variant="secondary">
-                        {req.status === 'accepted' ? 'Aceptada' : req.status === 'rejected' ? 'Rechazada' : req.status === 'completed' ? 'Completada' : 'Pendiente'}
-                      </Badge>
-                      {req.status === 'accepted' && (
-                        <Button size="sm" onClick={() => router.push('/projects')}>
-                          Abrir chat
-                        </Button>
-                      )}
-                    </>
-                  )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
+  </TabsContent>
 
           {/* Tab: Analíticas */}
           <TabsContent value="analytics" className="space-y-6">

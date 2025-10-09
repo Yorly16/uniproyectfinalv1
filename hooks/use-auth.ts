@@ -13,11 +13,9 @@ export function useAuth() {
   const [userProfile, setUserProfile] = useState<UserWithProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
-  // Blindaje contra doble inicialización en Strict Mode
   const initRef = useRef(false)
 
   useEffect(() => {
-    // Ejecutar solo una vez
     if (initRef.current) return
     initRef.current = true
 
@@ -29,24 +27,17 @@ export function useAuth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event, session?.user?.email)
-      
+
       setSession(session)
       setUser(session?.user ?? null)
-      
+
       if (session?.user) {
         await loadUserProfile(session.user.id)
       } else {
         setUserProfile(null)
       }
-      
-      setLoading(false)
 
-      // Manejar eventos específicos
-      if (event === 'SIGNED_IN') {
-        toast.success('¡Bienvenido!')
-      } else if (event === 'SIGNED_OUT') {
-        // No navegamos aquí; signOut() manejará la redirección
-      }
+      setLoading(false)
     })
 
     return () => subscription.unsubscribe()

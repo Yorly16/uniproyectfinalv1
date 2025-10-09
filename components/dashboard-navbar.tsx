@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { useUnreadCounts } from "../hooks/use-unread-counts"
 
 interface User {
   email: string
@@ -34,16 +35,19 @@ interface User {
 
 export function DashboardNavbar() {
   const router = useRouter()
-  const { user, userProfile, signOut, loading } = useAuth()
+  const { user, userProfile, loading: authLoading, signOut } = useAuth()
   const [notificationCount, setNotificationCount] = useState(0)
   const [incomingRequests, setIncomingRequests] = useState<any[]>([])
   const [requestsLoading, setRequestsLoading] = useState(false)
+  const { unreadCount, isFetching } = useUnreadCounts(5000)
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login')
     }
-  }, [user, loading, router])
+  }, [user, authLoading, router])
+
+
 
   useEffect(() => {
     const loadIncomingRequests = async () => {
@@ -166,7 +170,7 @@ export function DashboardNavbar() {
     }
   }
 
-  if (loading || !user) {
+  if (authLoading) {
     return (
       <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -182,7 +186,10 @@ export function DashboardNavbar() {
               <span className="text-xl font-bold text-balance">Uni Project</span>
             </Link>
           </div>
-          <div className="text-sm text-muted-foreground">Loading...</div>
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
+            <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+          </div>
         </div>
       </nav>
     )
@@ -241,10 +248,13 @@ export function DashboardNavbar() {
             <PopoverTrigger asChild>
               <Button type="button" variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5" />
-                {notificationCount > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-                    {notificationCount}
+                    {unreadCount}
                   </span>
+                )}
+                {isFetching && (
+                  <span className="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-muted-foreground/50 animate-pulse" />
                 )}
               </Button>
             </PopoverTrigger>
@@ -256,8 +266,17 @@ export function DashboardNavbar() {
 
               <div className="max-h-80 overflow-y-auto">
                 {requestsLoading ? (
-                  <div className="px-4 py-6 text-sm text-muted-foreground">
-                    Cargando solicitudes...
+                  <div className="space-y-4 p-4">
+                    {[1, 2].map(i => (
+                      <div key={i} className="space-y-2">
+                        <div className="h-4 w-3/4 bg-muted rounded animate-pulse" />
+                        <div className="h-3 w-1/2 bg-muted rounded animate-pulse" />
+                        <div className="flex gap-2">
+                          <div className="h-8 w-20 bg-muted rounded animate-pulse" />
+                          <div className="h-8 w-20 bg-muted rounded animate-pulse" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <>

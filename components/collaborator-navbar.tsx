@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
+import { createClient } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
 import { LogOut, User, Settings, Bell, Search, Briefcase } from "lucide-react"
 import {
@@ -18,17 +19,21 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/use-auth"
+import { useUnreadCounts } from "../hooks/use-unread-counts"
 
 export function CollaboratorNavbar() {
   const router = useRouter()
   const { user, userProfile, signOut, loading } = useAuth()
-  const [notificationCount] = useState(2) // Simulación de notificaciones
+
+  const { unreadCount, isFetching } = useUnreadCounts(5000)
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
     }
   }, [user, loading, router])
+
+
 
   const handleLogout = async () => {
     await signOut()
@@ -68,6 +73,7 @@ export function CollaboratorNavbar() {
     )
   }
 
+  // No mostrar "Cargando..." a nivel de Navbar; sólo esqueletos internos
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -112,63 +118,18 @@ export function CollaboratorNavbar() {
           {/* Notificaciones */}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="h-5 w-5" />
-            {notificationCount > 0 && (
+            {unreadCount > 0 && (
               <Badge 
                 variant="destructive" 
                 className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs"
               >
-                {notificationCount}
+                {unreadCount}
               </Badge>
             )}
+            {isFetching && (
+              <span className="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-muted-foreground/50 animate-pulse" />
+            )}
           </Button>
-
-          {/* Menú de usuario */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-blue-500 text-white">
-                    {getInitials(userProfile.full_name ?? user.email ?? '')}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">
-                    {userProfile.full_name ?? user.email}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Briefcase className="h-3 w-3" />
-                    Colaborador
-                  </div>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/collaborator/profile" className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  Mi Perfil
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/collaborator/settings" className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Configuración
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                className="text-destructive cursor-pointer"
-                onClick={handleLogout}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Cerrar Sesión
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
     </nav>

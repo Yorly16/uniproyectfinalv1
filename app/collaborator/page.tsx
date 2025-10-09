@@ -15,6 +15,7 @@ import { useCollaborations } from "@/hooks/use-collaborations"
 import { useProjects } from "@/hooks/use-projects"
 import { useAuth } from "@/hooks/use-auth"
 import { ChatDialog } from "@/components/chat-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Briefcase, Clock, TrendingUp, Award, Users, Search, Filter, Target, SortAsc, X, Calendar, MessageCircle, BookOpen } from "lucide-react"
 
 interface User {
@@ -40,6 +41,7 @@ export default function CollaboratorPage() {
   const { collaborations } = useCollaborations()
   const [chatOpen, setChatOpen] = useState(false)
   const [selectedCollab, setSelectedCollab] = useState<any | null>(null)
+  const [pendingNoticeOpen, setPendingNoticeOpen] = useState(false)
   const { user, userProfile, loading: authLoading } = useAuth()
 
   const isLoading = authLoading || projectsLoading
@@ -435,7 +437,7 @@ export default function CollaboratorPage() {
                             setSelectedCollab(collaboration)
                             setChatOpen(true)
                           } else {
-                            alert("El chat está disponible cuando la colaboración es aceptada.")
+                            setPendingNoticeOpen(true)
                           }
                         }}
                       >
@@ -464,6 +466,20 @@ export default function CollaboratorPage() {
     </TabsContent>
   </Tabs>
         <ChatDialog open={chatOpen} onOpenChange={setChatOpen} collaboration={selectedCollab} />
+        <AlertDialog open={pendingNoticeOpen} onOpenChange={setPendingNoticeOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>No puedes chatear aún</AlertDialogTitle>
+              <AlertDialogDescription>
+                Aún no has sido aceptado en este proyecto, por eso el chat no está disponible.
+                El chat se habilitará automáticamente cuando el dueño del proyecto acepte tu colaboración.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogAction onClick={() => setPendingNoticeOpen(false)}>
+              Entendido
+            </AlertDialogAction>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   )
